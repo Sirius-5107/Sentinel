@@ -1,0 +1,31 @@
+# Sentinel — LLM & Embedding Provider Configuration
+# API keys must never appear here. Supply them via environment variables.
+
+llm:
+  default_provider: openai
+  providers:
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4o"
+      max_tokens: 4096
+      temperature: 0.2
+      timeout: 60
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-opus-4-6"
+      max_tokens: 4096
+      temperature: 0.2
+      timeout: 60
+
+embeddings:
+  default_provider: openai
+  providers:
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "text-embedding-3-large"
+      dimensions: 3072
+      batch_size: 512
+
+notion:
+  api_key: "${NOTION_API_KEY}"
+  workspace_id: "${NOTION_WORKSPACE_ID}"

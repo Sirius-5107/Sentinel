@@ -1,0 +1,65 @@
+site_name: Sentinel
+site_description: Autonomous financial intelligence platform — engineering documentation.
+site_author: Sentinel Engineering
+repo_url: https://github.com/Sirius-5107/Sentinel
+repo_name: Sirius-5107/Sentinel
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.annotate
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Vision: 00-vision.md
+  - SDD: 01-sdd.md
+  - Architecture: 02-architecture.md
+  - Domain Model: 03-domain-model.md
+  - Tech Stack: 04-tech-stack.md
+  - Engineering:
+      - Standards: 10-engineering-standards.md
+      - Code Review: 11-code-review-checklist.md
+  - Planning:
+      - Implementation Plan: 20-implementation-plan.md
+      - Changelog: 30-changelog.md
+  - Decisions:
+      - ADR-0001 Event-Centric Design: decisions/ADR-0001-event-centric.md
+      - ADR-0002 PostgreSQL: decisions/ADR-0002-postgres.md
+      - ADR-0003 Engine Architecture: decisions/ADR-0003-engine-architecture.md

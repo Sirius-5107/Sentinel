@@ -1,0 +1,45 @@
+# Sentinel — News & Data Source Configuration
+# Add, remove, or disable sources here without touching code.
+
+sources:
+  rss:
+    - name: Reuters Business
+      url: "https://feeds.reuters.com/reuters/businessNews"
+      enabled: true
+      category: macro
+      weight: 1.0
+
+    - name: Financial Times
+      url: "https://www.ft.com/rss/home"
+      enabled: true
+      category: macro
+      weight: 1.0
+
+    - name: Bloomberg Markets
+      url: "https://feeds.bloomberg.com/markets/news.rss"
+      enabled: true
+      category: macro
+      weight: 1.0
+
+    - name: WSJ Markets
+      url: "https://feeds.wsj.com/wsj/xml/rss/3_7085.xml"
+      enabled: true
+      category: macro
+      weight: 0.9
+
+    - name: Economic Times Markets
+      url: "https://economictimes.indiatimes.com/markets/rss.cms"
+      enabled: true
+      category: india
+      weight: 0.9
+
+  scrape:
+    - name: SEC EDGAR Filings
+      url: "https://www.sec.gov/cgi-bin/browse-edgar"
+      enabled: false       # requires dedicated collector
+      category: filings
+
+ingestion:
+  dedup_window_hours: 24
+  max_age_days: 7
+  batch_size: 50

@@ -1,0 +1,30 @@
+# Sentinel — Logging Configuration
+# Loguru is the logging backend. Do not use the stdlib logging module directly.
+
+logging:
+  level: INFO             # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} | {message}"
+  colorize: true          # set false in production / CI
+
+  sinks:
+    console:
+      enabled: true
+      level: INFO
+
+    file:
+      enabled: false       # enable in production
+      path: "logs/sentinel.log"
+      rotation: "100 MB"
+      retention: "30 days"
+      compression: "gz"
+      level: DEBUG
+      enqueue: true        # non-blocking writes
+
+    json:
+      enabled: false       # enable for log aggregation (Datadog, Loki, etc.)
+      path: "logs/sentinel.json"
+      rotation: "100 MB"
+      retention: "7 days"
+      compression: "gz"
+      level: INFO
+      enqueue: true
