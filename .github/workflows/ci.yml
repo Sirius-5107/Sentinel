@@ -24,27 +24,38 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          # Cache the uv cache directory keyed on the lockfile so cache
+          # is invalidated automatically whenever dependencies change.
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+        # uv manages the Python installation; we pin the version here so
+        # the runner environment matches the project's requires-python.
+        run: uv python install 3.13
+
+      - name: Verify lockfile is up-to-date
+        # Fails if pyproject.toml has been edited without running `uv lock`.
+        # This catches the "forgot to re-lock" mistake before any code runs.
+        run: uv lock --check
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        # --locked: install exactly what is in uv.lock — no re-resolution.
+        # Fails loudly if the lockfile is absent or stale (belt + suspenders
+        # with the step above).
+        run: uv sync --locked --all-extras
 
       - name: Ruff lint
-        run: uv run ruff check .
+        run: uv run --frozen ruff check .
 
       - name: Ruff format check
-        run: uv run ruff format --check .
+        run: uv run --frozen ruff format --check .
 
       - name: Pyright
-        run: uv run pyright
+        run: uv run --frozen pyright
 
       - name: Pytest
-        run: uv run pytest
+        run: uv run --frozen pytest
 
       - name: Build MkDocs
-        run: uv run mkdocs build --strict
+        run: uv run --frozen mkdocs build --strict
