@@ -1,0 +1,98 @@
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# ── uv ────────────────────────────────────────────────────────
+# uv.lock is intentionally committed. Sentinel is an application, not a
+# library. The lockfile guarantees identical dependency trees across all
+# developer machines, CI, and production environments.
+.uv/
+
+# ── Virtual environments ──────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Distribution / packaging ──────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+MANIFEST
+
+# ── Testing & coverage ────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+coverage.json
+.coverage_html/
+htmlcov/
+nosetests.xml
+test-results/
+
+# ── Type checking ─────────────────────────────────────────────
+.mypy_cache/
+.pyright/
+pyrightconfig.json.bak
+
+# ── Linting ───────────────────────────────────────────────────
+.ruff_cache/
+
+# ── Environment & secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Database ──────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── MkDocs ────────────────────────────────────────────────────
+site/
+
+# ── Playwright ────────────────────────────────────────────────
+playwright/.auth/
+test-results/
+playwright-report/
+
+# ── Docker ────────────────────────────────────────────────────
+.docker/
+
+# ── Jupyter ───────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
