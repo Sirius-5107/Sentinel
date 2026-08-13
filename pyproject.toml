@@ -27,6 +27,7 @@ dependencies = [
     "typer>=0.15",
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
@@ -45,7 +46,7 @@ sentinel = "sentinel.cli:app"
 [tool.hatch.build.targets.wheel]
 packages = ["sentinel", "sentinel_core"]
 
-# ── Ruff ──────────────────────────────────────────────────────────────────────
+# -- Ruff ---------------------------------------------------------------------
 
 [tool.ruff]
 target-version = "py313"
@@ -74,8 +75,9 @@ ignore = [
     "D104",   # missing docstring in public package (handled at package level)
     "D203",   # one-blank-line-before-class (conflicts with D211)
     "D213",   # multi-line-summary-second-line (conflicts with D212)
-    "ANN101", # missing type annotation for self
-    "ANN102", # missing type annotation for cls
+    "TC001",  # move application import into type-checking block -- breaks Pydantic runtime
+    "TC002",  # move third-party import into type-checking block -- breaks Pydantic runtime
+    "TC003",  # move stdlib import into type-checking block -- breaks Pydantic runtime
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -90,7 +92,7 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
 
-# ── Pyright ───────────────────────────────────────────────────────────────────
+# -- Pyright ------------------------------------------------------------------
 
 [tool.pyright]
 pythonVersion = "3.13"
@@ -103,7 +105,13 @@ reportUnknownMemberType = false
 reportUnknownVariableType = false
 reportUnknownArgumentType = false
 
-# ── Pytest ────────────────────────────────────────────────────────────────────
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportArgumentType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+
+# -- Pytest -------------------------------------------------------------------
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -124,7 +132,7 @@ markers = [
     "slow: tests that are intentionally slow",
 ]
 
-# ── Coverage ──────────────────────────────────────────────────────────────────
+# -- Coverage -----------------------------------------------------------------
 
 [tool.coverage.run]
 source = ["sentinel", "sentinel_core"]

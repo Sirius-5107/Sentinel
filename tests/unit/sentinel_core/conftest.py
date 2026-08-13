@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 import hashlib
 import uuid
 
@@ -139,9 +139,14 @@ def task_kwargs(pipeline_run_id: uuid.UUID) -> dict:  # type: ignore[type-arg]
 
 @pytest.fixture()
 def daily_report_kwargs(pipeline_run_id: uuid.UUID) -> dict:  # type: ignore[type-arg]
-    """Minimal valid kwargs for a DailyReport."""
+    """Minimal valid kwargs for a DailyReport.
+
+    Uses UTC date to match the validator in DailyReport._validate_coverage_date,
+    which calls datetime.now(tz=UTC).date(). Using date.today() (local time) would
+    cause a one-day mismatch on machines in timezones ahead of UTC (e.g. IST = UTC+5:30).
+    """
     return {
-        "coverage_date": date.today(),
+        "coverage_date": datetime.now(tz=UTC).date(),
         "pipeline_run_id": pipeline_run_id,
     }
 
