@@ -194,11 +194,15 @@ class Article(SentinelModel):
 
     @field_validator("fetched_at", "published_at", mode="before")
     @classmethod
-    def _require_utc(cls, v: datetime | None) -> datetime | None:
-        """Ensure datetime fields are UTC-aware when provided."""
-        if v is not None and v.tzinfo is None:
-            raise ValueError("datetime fields must be UTC-aware (tzinfo must not be None).")
-        return v
+    def _normalise_to_utc(cls, v: datetime | None) -> datetime | None:
+        """Reject naive datetimes; normalise timezone-aware datetimes to UTC."""
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            raise ValueError(
+                "datetime fields must be timezone-aware (UTC-aware); got naive datetime."
+            )
+        return v.astimezone(UTC)
 
     @field_validator("published_at")
     @classmethod

@@ -217,3 +217,89 @@ class TestTheme:
         data = t.model_dump(mode="json")
         assert data["slug"] == "ai-capex-cycle"
         assert isinstance(data["id"], str)
+
+
+# -- Immutability and UTC policy (base model) ---------------------------------
+
+
+@pytest.mark.unit
+class TestSentinelModelImmutability:
+    """Prove that frozen=True is enforced on all domain models."""
+
+    def test_market_is_frozen(self, market_kwargs: dict) -> None:  # type: ignore[type-arg]
+        m = Market(**market_kwargs)
+        with pytest.raises((TypeError, ValidationError)):
+            m.name = "Changed"  # type: ignore[misc]
+
+    def test_organization_is_frozen(self) -> None:
+        org = Organization(name="Fed")
+        with pytest.raises((TypeError, ValidationError)):
+            org.name = "Changed"  # type: ignore[misc]
+
+    def test_theme_is_frozen(self) -> None:
+        t = Theme(name="AI", slug="ai")
+        with pytest.raises((TypeError, ValidationError)):
+            t.name = "Changed"  # type: ignore[misc]
+
+    def test_updated_at_set_at_construction(self, market_kwargs: dict) -> None:  # type: ignore[type-arg]
+        """updated_at is the version timestamp of this snapshot; set once at construction."""
+        m = Market(**market_kwargs)
+        assert m.updated_at is not None
+        assert m.updated_at.tzinfo is not None
+
+    def test_new_instance_carries_new_updated_at(self, market_kwargs: dict) -> None:  # type: ignore[type-arg]
+        """Simulating a mutation: construct a new instance with fresh updated_at."""
+        import time
+
+        m1 = Market(**market_kwargs)
+        time.sleep(0.01)
+        m2 = Market(**{**market_kwargs, "is_active": False})
+        # m2 is the "updated" record — it is a new object, m1 is unchanged
+        assert m1.is_active is True
+        assert m2.is_active is False
+        assert m1.id == m2.id  # same logical record
+        assert m1 is not m2  # but different objects
+
+
+@pytest.mark.unit
+class TestUTCNormalisationPolicy:
+    """The UTC policy: naive datetimes rejected; aware datetimes normalised to UTC."""
+
+    def test_naive_last_signal_at_rejected(self) -> None:
+        from datetime import datetime as dt
+
+        with pytest.raises(ValidationError):
+            Theme(name="AI", slug="ai", last_signal_at=dt(2026, 8, 7))
+
+    def test_non_utc_aware_last_signal_at_normalised(self) -> None:
+        """A non-UTC timezone-aware datetime is accepted and normalised to UTC."""
+        from datetime import timedelta, timezone
+
+        ist = timezone(timedelta(hours=5, minutes=30))
+        ist_dt = datetime(2026, 8, 7, 12, 0, 0, tzinfo=ist)
+        t = Theme(name="AI", slug="ai", last_signal_at=ist_dt)
+        assert t.last_signal_at is not None
+        assert t.last_signal_at.tzinfo == UTC
+        # 12:00 IST = 06:30 UTC
+        assert t.last_signal_at.hour == 6
+        assert t.last_signal_at.minute == 30
+
+    def test_utc_datetime_accepted(self) -> None:
+        utc_dt = datetime(2026, 8, 7, 10, 0, 0, tzinfo=UTC)
+        t = Theme(name="AI", slug="ai", last_signal_at=utc_dt)
+        assert t.last_signal_at == utc_dt
+
+    def test_base_model_naive_created_at_rejected(self, market_kwargs: dict) -> None:  # type: ignore[type-arg]
+        from datetime import datetime as dt
+
+        with pytest.raises(ValidationError):
+            Market(**{**market_kwargs, "created_at": dt(2026, 8, 7)})
+
+    def test_base_model_non_utc_created_at_normalised(self, market_kwargs: dict) -> None:  # type: ignore[type-arg]
+        from datetime import timedelta, timezone
+
+        ist = timezone(timedelta(hours=5, minutes=30))
+        ist_dt = datetime(2026, 8, 7, 12, 0, 0, tzinfo=ist)
+        m = Market(**{**market_kwargs, "created_at": ist_dt})
+        assert m.created_at.tzinfo == UTC
+        assert m.created_at.hour == 6

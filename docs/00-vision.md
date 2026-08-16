@@ -152,3 +152,33 @@ Sentinel should eventually support:
 - AI trend tracking
 - Portfolio monitoring
 - Investment idea generation
+
+---
+
+# Success Metrics
+
+Sentinel is successful when:
+
+**Daily Brief Quality**
+
+- Every development that moves markets by more than 1% is covered.
+- No important development is missed for three consecutive weeks.
+- Every insight is traceable to at least one primary source.
+- The daily brief can be read and understood in under 15 minutes.
+
+**Intelligence Quality**
+
+- Sentinel identifies sector rotation trends before they are widely reported.
+- Entity resolution accuracy exceeds 90% (correct company / person linkage).
+- Deduplication collapses at least 80% of redundant coverage into single events.
+
+**Operational Quality**
+
+- The daily brief is published by 07:30 UTC every trading day.
+- Pipeline failures are resolved within 2 hours.
+- System uptime exceeds 99% during market hours.
+
+**Knowledge Base**
+
+- After 90 days of operation, the knowledge base contains profiles for at least 500 companies and 100 investment themes.
+- Every report can be searched and retrieved by entity, theme, date, or keyword.

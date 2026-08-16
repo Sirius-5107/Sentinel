@@ -93,10 +93,7 @@ class ReportSection(SentinelModel):
     content: str | None = Field(
         default=None,
         max_length=20_000,
-        description=(
-            "Full synthesised section narrative. "
-            "None while the section is being generated."
-        ),
+        description="Full synthesised section narrative. None while being generated.",
     )
     theme_id: uuid.UUID | None = Field(
         default=None,

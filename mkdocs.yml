@@ -53,6 +53,7 @@ nav:
   - Architecture: 02-architecture.md
   - Domain Model: 03-domain-model.md
   - Tech Stack: 04-tech-stack.md
+  - Contracts: 05-contracts.md
   - Engineering:
       - Standards: 10-engineering-standards.md
       - Code Review: 11-code-review-checklist.md
@@ -63,3 +64,4 @@ nav:
       - ADR-0001 Event-Centric Design: decisions/ADR-0001-event-centric.md
       - ADR-0002 PostgreSQL: decisions/ADR-0002-postgres.md
       - ADR-0003 Engine Architecture: decisions/ADR-0003-engine-architecture.md
+      - ADR-0004 Immutable Domain Objects: decisions/ADR-0004-immutable-domain-objects.md

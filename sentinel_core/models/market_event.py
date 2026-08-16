@@ -155,9 +155,10 @@ class MarketEvent(SentinelModel):
     @field_validator("occurred_at", mode="before")
     @classmethod
     def _validate_occurred_at(cls, v: datetime) -> datetime:
-        """Ensure occurred_at is UTC-aware and not more than 30 days in the future."""
+        """Normalise occurred_at to UTC; reject naive datetimes and far-future values."""
         if v.tzinfo is None:
-            raise ValueError("occurred_at must be UTC-aware (tzinfo must not be None).")
+            raise ValueError("occurred_at must be timezone-aware (UTC-aware); got naive datetime.")
+        v = v.astimezone(UTC)
         cutoff = datetime.now(tz=UTC) + _MAX_FUTURE_OCCURRED_AT
         if v > cutoff:
             raise ValueError(

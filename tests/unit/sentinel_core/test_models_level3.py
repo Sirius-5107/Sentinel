@@ -189,7 +189,9 @@ class TestArticle:
 
     def test_sentiment_without_confidence_raises(self, article_kwargs: dict) -> None:  # type: ignore[type-arg]
         with pytest.raises(ValidationError, match="sentiment"):
-            Article(**{**article_kwargs, "sentiment": Sentiment.BULLISH, "sentiment_confidence": None})
+            Article(
+                **{**article_kwargs, "sentiment": Sentiment.BULLISH, "sentiment_confidence": None}
+            )
 
     def test_confidence_without_sentiment_raises(self, article_kwargs: dict) -> None:  # type: ignore[type-arg]
         with pytest.raises(ValidationError, match="sentiment"):

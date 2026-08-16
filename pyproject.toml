@@ -52,6 +52,7 @@ packages = ["sentinel", "sentinel_core"]
 target-version = "py313"
 line-length = 100
 src = ["sentinel", "sentinel_core", "tests"]
+exclude = ["docs/"]
 
 [tool.ruff.lint]
 select = [

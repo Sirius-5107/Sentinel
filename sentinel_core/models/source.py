@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
 from sentinel_core.enums import AssetClass, MarketRegion, SourceStatus, SourceType
 from sentinel_core.models._base import SentinelModel
@@ -35,7 +35,8 @@ class Source(SentinelModel):
         - fetch_interval_minutes must be in [1, 1440].
         - consecutive_errors must be >= 0.
         - last_fetched_at must not be in the future.
-        - All datetime fields must be UTC-aware.
+        - All datetime fields must be UTC-aware; non-UTC aware datetimes are
+          normalised to UTC.
 
     Fields:
         id: UUID v4 primary key.
@@ -52,7 +53,7 @@ class Source(SentinelModel):
         last_error: Most recent fetch error message; max 2000 chars.
         consecutive_errors: Count of consecutive failures since last success.
         created_at: UTC construction timestamp.
-        updated_at: UTC last-mutation timestamp.
+        updated_at: UTC version timestamp of this snapshot.
 
     Example::
 
@@ -143,21 +144,15 @@ class Source(SentinelModel):
     @field_validator("last_fetched_at", mode="before")
     @classmethod
     def _validate_last_fetched_at(cls, v: datetime | None) -> datetime | None:
-        """Ensure last_fetched_at is UTC-aware and not in the future."""
+        """Normalise last_fetched_at to UTC; reject naive datetimes and future values."""
         if v is None:
             return v
         if v.tzinfo is None:
-            raise ValueError("last_fetched_at must be UTC-aware (tzinfo must not be None).")
+            raise ValueError(
+                "last_fetched_at must be timezone-aware (UTC-aware); got naive datetime."
+            )
+        v = v.astimezone(UTC)
         now = datetime.now(tz=UTC)
         if v > now:
             raise ValueError(f"last_fetched_at must not be in the future; got {v.isoformat()!r}.")
         return v
-
-    @model_validator(mode="after")
-    def _validate_timestamps_utc(self) -> Source:
-        """Ensure created_at and updated_at are UTC-aware."""
-        for field_name in ("created_at", "updated_at"):
-            value: datetime = getattr(self, field_name)
-            if value.tzinfo is None:
-                raise ValueError(f"{field_name} must be UTC-aware.")
-        return self

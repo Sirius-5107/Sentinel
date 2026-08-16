@@ -35,3 +35,53 @@ None — initial release.
 - Phase 2: Data collection layer
 - Phase 3: Processing pipeline
 - See `20-implementation-plan.md` for the full roadmap
+
+---
+
+## [0.1.1] — 2026-08-15
+
+### Summary
+Phase 1 finalization. Repository hygiene, CI fixes, UTC policy, immutability clarification, documentation restoration, and test hardening. No new functionality.
+
+### Repository Hygiene
+- Renamed `gitignore` → `.gitignore` (was incorrectly named and not functioning)
+- Removed 34 tracked generated artifacts (`.coverage`, `__pycache__/`, `*.pyc`)
+
+### CI Fixes
+- Fixed E501 (line too long) in `test_models_level3.py`
+- Excluded `docs/` from Ruff format scope (docs contain illustrative code blocks)
+
+### Domain Model Fixes
+- Removed orphaned `model_validator` import from `source.py`
+
+### Timestamp Policy
+- Centralised UTC normalisation in `SentinelModel._normalise_to_utc` base validator
+- Changed policy from "reject non-UTC" to "normalise to UTC" — non-UTC aware datetimes are now converted rather than rejected
+- Propagated consistent normalisation to all per-field datetime validators
+- All error messages consistently mention "timezone-aware (UTC-aware)"
+
+### Immutability Policy (ADR-0004)
+- Clarified that `updated_at` is a version timestamp, not a mutable field
+- Updated `_base.py` module docstring with full immutability and UTC policy documentation
+- Added ADR-0004 documenting the decision and rationale
+- Added `TestSentinelModelImmutability` and `TestUTCNormalisationPolicy` test classes
+
+### Documentation Restored
+- `docs/01-sdd.md` — Software Design Document (was empty stub)
+- `docs/02-architecture.md` — Architecture reference (was empty stub)
+- `docs/03-domain-model.md` — Domain model summary (was empty stub)
+- `docs/04-tech-stack.md` — Technology stack and rationale (was empty stub)
+- `docs/00-vision.md` — Restored Success Metrics section
+- All ADRs (0001–0003) restored with full content
+- `docs/decisions/ADR-0004-immutable-domain-objects.md` — new ADR
+
+### Test Results
+- 293 tests passing (up from 283)
+- Coverage: 99% sentinel_core
+- Ruff: clean
+- Pyright: clean
+- MkDocs: builds successfully
+
+### Future Work
+- Phase 2: Data collection layer (RSS, scraping, dynamic collectors)
+- Phase 3: Processing pipeline (classification, scoring, entity extraction)

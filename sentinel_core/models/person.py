@@ -6,7 +6,7 @@ market-relevant person — who appears in Sentinel's coverage.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import Field, field_validator
 
@@ -101,6 +101,8 @@ class Person(SentinelModel):
     @classmethod
     def _require_utc_last_mentioned(cls, v: datetime | None) -> datetime | None:
         """Ensure last_mentioned_at is timezone-aware when provided."""
-        if v is not None and v.tzinfo is None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
             raise ValueError("last_mentioned_at must be UTC-aware (tzinfo must not be None).")
-        return v
+        return v.astimezone(UTC)

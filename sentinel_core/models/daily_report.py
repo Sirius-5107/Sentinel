@@ -132,9 +132,11 @@ class DailyReport(SentinelModel):
     @classmethod
     def _require_utc_published_at(cls, v: datetime | None) -> datetime | None:
         """Ensure published_at is UTC-aware when provided."""
-        if v is not None and v.tzinfo is None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
             raise ValueError("published_at must be UTC-aware (tzinfo must not be None).")
-        return v
+        return v.astimezone(UTC)
 
     @model_validator(mode="after")
     def _validate_published_state_rules(self) -> DailyReport:

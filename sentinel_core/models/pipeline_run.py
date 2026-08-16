@@ -7,7 +7,7 @@ audit log and health indicator for the platform.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 
 from pydantic import Field, field_validator, model_validator
@@ -136,9 +136,11 @@ class PipelineRun(SentinelModel):
     @classmethod
     def _require_utc(cls, v: datetime | None) -> datetime | None:
         """Ensure timestamp fields are UTC-aware when provided."""
-        if v is not None and v.tzinfo is None:
+        if v is None:
+            return None
+        if v.tzinfo is None:
             raise ValueError("Timestamp fields must be UTC-aware (tzinfo must not be None).")
-        return v
+        return v.astimezone(UTC)
 
     @field_validator("trigger")
     @classmethod
