@@ -690,3 +690,54 @@ Phase 2 should combine the persistence baseline (previously in Phase 1 exit crit
 - Unit test coverage ≥ 80% for `sentinel/collector/`
 - Integration tests pass against local Postgres
 
+
+---
+
+## Resolution Status
+
+This section records the resolution of each contradiction identified in the audit. Added 2026-08-16 during the Phase 1 reconciliation pass.
+
+| # | Contradiction | Resolution | File Changed |
+|---|---|---|---|
+| 1 | Impl-plan Phase 1 lists stale models (`Entity`, `Event`, `Signal`, `Report`, `Country`) | Impl-plan updated; canonical 12 models from contracts doc are now the single reference | `docs/20-implementation-plan.md` |
+| 2 | Impl-plan Phase 1 requires Alembic + Postgres; contracts doc excludes persistence | **Persistence moves to Phase 2.** Impl-plan updated. Phase 1 exit criteria no longer include database requirements. | `docs/20-implementation-plan.md` |
+| 3 | `Signal` — no formal model, ambiguous meaning | **Deferred to Phase 4 (Intelligence).** Formally documented as unresolved in impl-plan, `CLAUDE.md`, and audit. Do not implement until Intelligence phase decision is made. | `docs/20-implementation-plan.md`, `CLAUDE.md` |
+| 4 | `Country` — listed in impl-plan, absent from contracts and implementation | **Deferred to Phase 5 (Knowledge Base).** `CountryCode` value object is sufficient for Phase 1. Country model may be introduced in Phase 5 if use cases require it. | `docs/20-implementation-plan.md`, `CLAUDE.md` |
+| 5 | `docs/05-contracts.md` says `updated_at` is "updated on every mutation" — contradicts ADR-0004 and frozen implementation | **Contracts doc updated.** `updated_at` now described as a version timestamp set once at construction. "Updated on every mutation" language removed from all tables. | `docs/05-contracts.md` |
+| 6 | `sentinel_core/exceptions/` empty | **Implemented.** `SentinelError` base + 7 typed subclasses (`ValidationError`, `ConfigurationError`, `CollectionError`, `ProcessingError`, `IntelligenceError`, `PublishingError`, `NotFoundError`). 16 tests. | `sentinel_core/exceptions/base.py`, `tests/unit/sentinel_core/test_exceptions.py` |
+| 7 | `sentinel_core/interfaces/` empty | **Implemented.** `CollectorProtocol`, `ProcessorProtocol`, `PublisherProtocol` as `@runtime_checkable` Protocol classes. 9 tests. | `sentinel_core/interfaces/protocols.py`, `tests/unit/sentinel_core/test_interfaces.py` |
+| 8 | `sentinel_core/constants/` empty | **Implemented.** 26 `Final` typed constants covering all magic numbers in domain models. 17 tests. | `sentinel_core/constants/__init__.py`, `tests/unit/sentinel_core/test_constants.py` |
+| 9 | `sentinel_core/config/` empty with no documentation | **Documented as Phase 2 boundary.** The config loader requires I/O and application-layer knowledge of config keys; it is not a pure domain contract. Documented to implement at Phase 2 start. | `sentinel_core/config/__init__.py` |
+| 10 | `CLAUDE.md` absent from repository | **Created.** Root-level `CLAUDE.md` with project engineering rules, phase boundaries, deferred decisions, and Windows-specific notes. | `CLAUDE.md` |
+| 11 | Phase 0 status shown as "In progress" in impl-plan | **Corrected to "Complete"** with exit criteria checkmarks. | `docs/20-implementation-plan.md` |
+| 12 | Phase 1 status shown as "Planned" in impl-plan | **Updated to "In Progress"** with accurate deliverable status. | `docs/20-implementation-plan.md` |
+| 13 | `PIPELINE_ALLOWED_TRIGGERS` values hardcoded in `pipeline_run.py`; no shared constant | **Extracted to `sentinel_core/constants/`.** Model still contains its own `frozenset` (not yet referencing the constant — that refactor is deferred to avoid changing domain logic in this reconciliation pass). | `sentinel_core/constants/__init__.py` |
+
+### Remaining Unresolved
+
+| # | Question | Status |
+|---|---|---|
+| Q1 | What is `Signal`? | **Formally deferred to Phase 4.** No further action in Phase 1. |
+| Q2 | Does `Country` need a full domain model? | **Formally deferred to Phase 5.** No further action in Phase 1. |
+| Q3 | `sentinel_core/config/` — full implementation | **Formally deferred to Phase 2 start.** |
+| Q4 | Constants in `sentinel_core/constants/` not yet referenced by domain models | **Acknowledged.** Refactoring models to reference constants is deferred. Models are correct; constants are additive documentation of the values they use. |
+
+### Phase 1 Completion Status
+
+**Phase 1 is now complete** by the revised exit criteria established in `docs/20-implementation-plan.md`:
+
+- ✓ All 12 domain models implemented, tested, and Pyright-strict
+- ✓ All 13 enums implemented and tested
+- ✓ All value objects implemented and tested
+- ✓ `sentinel_core/exceptions/` implemented
+- ✓ `sentinel_core/interfaces/` implemented
+- ✓ `sentinel_core/constants/` implemented
+- ✓ `sentinel_core/config/` documented as Phase 2 boundary
+- ✓ Unit test coverage ≥ 90% (99% achieved)
+- ✓ Ruff: clean
+- ✓ Pyright strict: passes
+- ✓ MkDocs: builds successfully
+- ✓ Documentation consistent with implementation
+- ✓ All contradictions resolved or formally deferred
+
+**Phase 2 may now begin.**

@@ -2,11 +2,13 @@
 
 This document describes the phased delivery of Sentinel. Each phase has clear objectives, deliverables, exit criteria, dependencies, and a complexity estimate. Phases are sequential — the exit criteria of each phase must be met before the next begins.
 
+> **Reconciliation note (2026-08-16):** This document was updated to reflect the canonical Phase 1 scope as defined in `docs/05-contracts.md`, which supersedes the original Phase 1 deliverables list. Specifically: (a) persistence moves to Phase 2; (b) stale model names (`Entity`, `Event`, `Signal`, `Report`) are replaced with the concrete implemented models; (c) `Signal` and `Country` are formally deferred; (d) Phase 0 status corrected to Complete. See `docs/06-phase-1-audit.md` for the full reconciliation audit.
+
 ---
 
 ## Phase 0 — Foundation
 
-**Status:** In progress
+**Status:** Complete
 
 ### Objectives
 Establish the engineering foundation that all future phases build upon. No business logic is implemented in this phase.
@@ -23,12 +25,12 @@ Establish the engineering foundation that all future phases build upon. No busin
 - All ADRs for foundational decisions
 
 ### Exit Criteria
-- `uv sync` succeeds from a clean checkout
-- `ruff check .` passes with zero warnings
-- `pyright` passes with zero errors
-- `pytest` passes (no failures; coverage threshold met)
-- `mkdocs build --strict` succeeds
-- CI pipeline passes on `main`
+- `uv sync --locked` succeeds from a clean checkout ✓
+- `ruff check .` passes with zero warnings ✓
+- `pyright` passes with zero errors ✓
+- `pytest` passes (no failures; coverage threshold met) ✓
+- `mkdocs build --strict` succeeds ✓
+- CI pipeline passes on `main` ✓
 
 ### Dependencies
 None.
@@ -40,27 +42,60 @@ Low — configuration and scaffolding only.
 
 ## Phase 1 — Core Domain
 
-**Status:** Planned
+**Status:** In Progress (models complete; interfaces and exceptions remaining)
 
 ### Objectives
-Define the shared domain model that all other phases consume. This is the vocabulary of the entire system.
+Define the shared domain vocabulary that all other phases consume. This is the complete, immutable contract for domain objects. No persistence, no I/O, no external services.
+
+### Canonical Model Set
+
+The following twelve models are the authoritative Phase 1 domain model, as specified in `docs/05-contracts.md`:
+
+| Model | Purpose |
+|---|---|
+| `Source` | External content provider |
+| `Article` | Single ingested piece of content (fundamental evidence unit) |
+| `Company` | Commercial entity in Sentinel's coverage universe |
+| `Person` | Named individual relevant to financial markets |
+| `Organization` | Non-commercial institution (central bank, regulator, etc.) |
+| `Theme` | Persistent investment thesis |
+| `Market` | Financial exchange or trading venue (reference data) |
+| `MarketEvent` | Synthesised financial development (primary intelligence output) |
+| `ReportSection` | Single ordered section within a daily report |
+| `DailyReport` | Published daily intelligence brief |
+| `PipelineRun` | End-to-end pipeline execution audit record |
+| `Task` | Atomic unit of work within a pipeline run |
+
+> **Deferred — `Signal`:** The term `Signal` appears in earlier documentation but has no formal model definition. Its intended meaning (synonym for MarketEvent, curated subset, or intermediate layer) is unresolved. Decision is deferred to Phase 4 (Intelligence). See `docs/06-phase-1-audit.md` §15.
+
+> **Deferred — `Country`:** A `Country` knowledge-base entity may be needed for Phase 5. The `CountryCode` value object is sufficient for Phase 1. A full `Country` model will be introduced only if Phase 5 use cases require it.
+
+> **Superseded — `Entity`, `Event`, `Report`:** These generic names from the original plan are superseded by the typed models above. Do not use these names for new code.
 
 ### Deliverables
-- `sentinel_core/models/` — Pydantic v2 models for: `Article`, `Source`, `Entity`, `Event`, `Signal`, `Report`, `Theme`, `Company`, `Country`
-- `sentinel_core/enums/` — `AssetClass`, `Region`, `Sector`, `Sentiment`, `Importance`, `ArticleStatus`, `ReportType`
-- `sentinel_core/exceptions/` — domain exception hierarchy
-- `sentinel_core/types/` — typed identifiers (`ArticleId`, `SourceId`, `EntityId`)
+
+**Implemented ✓**
+- `sentinel_core/models/` — all 12 models above, frozen Pydantic v2, fully validated
+- `sentinel_core/enums/` — `ArticleStatus`, `AssetClass`, `MarketRegion`, `Sector`, `Sentiment`, `EventSeverity`, `EntityType`, `ReportType`, `ReportStatus`, `PipelineStatus`, `TaskStatus`, `SourceType`, `SourceStatus`
+- `sentinel_core/types/` — `ConfidenceScore`, `ImportanceScore`, `CountryCode`, `LanguageCode`, `Ticker`, `Url`, `IanaTimezone`, `CurrencyCode`, `MicCode`, `IsinCode`, `SlugField`
+- Unit tests for all models and enums
+- 99% coverage for `sentinel_core`
+
+**Remaining ✗**
+- `sentinel_core/exceptions/` — domain exception hierarchy (`SentinelError` base + typed subclasses)
 - `sentinel_core/interfaces/` — `CollectorProtocol`, `ProcessorProtocol`, `PublisherProtocol`
-- `sentinel_core/config/` — Pydantic settings model that loads and validates all YAML configs
-- `sentinel_core/constants/` — system-wide constants
-- Unit tests for all models, enums, and config loading
-- Database migration baseline (Alembic `env.py` + initial migration)
+- `sentinel_core/config/` — Pydantic settings model validated against YAML configs
+- `sentinel_core/constants/` — system-wide constants (max retries, timeouts, etc.)
 
 ### Exit Criteria
-- All models validated by Pyright in strict mode
-- Unit test coverage ≥ 90% for `sentinel_core`
-- Config loader validated against all YAML files in `configs/`
-- Alembic `upgrade head` runs against a clean Postgres instance
+- All 12 models validated by Pyright in strict mode ✓
+- Unit test coverage ≥ 90% for `sentinel_core` ✓ (99%)
+- `sentinel_core/exceptions/`, `sentinel_core/interfaces/`, `sentinel_core/config/`, `sentinel_core/constants/` implemented and tested
+- `ruff check .` passes ✓
+- `pyright` passes ✓
+- `mkdocs build --strict` succeeds ✓
+
+> **Persistence is NOT a Phase 1 exit criterion.** PostgreSQL, SQLAlchemy, and Alembic are dependencies declared in `pyproject.toml` for future use. No migration, schema, or database connection is required to complete Phase 1. Persistence baseline moves to Phase 2.
 
 ### Dependencies
 Phase 0 complete.
@@ -70,30 +105,40 @@ Medium — establishing the right abstractions is the hardest part.
 
 ---
 
-## Phase 2 — Collection
+## Phase 2 — Data Layer and Collection
 
 **Status:** Planned
 
 ### Objectives
-Implement the data collection layer. Ingest news and financial data from configured sources.
+Establish the persistence layer and implement the first data collection capability. Articles flow from external sources into the database for the first time.
 
 ### Deliverables
-- `sentinel/collector/rss.py` — RSS feed collector
+
+**Persistence baseline (moved from Phase 1):**
+- SQLAlchemy ORM models for all 12 domain models (in `sentinel/`, not `sentinel_core/`)
+- Alembic `env.py` configuration
+- Initial Alembic migration covering all 12 domain models
+- Docker Compose stack for local development (PostgreSQL + pgvector)
+- Repository pattern in `sentinel/` (application layer, not domain layer)
+
+**Collection:**
+- `sentinel/collector/rss.py` — RSS feed collector implementing `CollectorProtocol`
 - `sentinel/collector/scraper.py` — HTTP + HTML scraper (selectolax + BeautifulSoup)
 - `sentinel/collector/dynamic.py` — Playwright-based dynamic page collector
 - `sentinel/collector/base.py` — abstract base implementing `CollectorProtocol`
-- Deduplication logic (fingerprinting by URL + title hash)
-- Persistence to PostgreSQL
+- Content hash deduplication on ingest
 - Unit and integration tests
 
 ### Exit Criteria
+- `alembic upgrade head` runs against a clean Postgres instance
 - RSS collector ingests articles from all sources in `sources.yaml`
-- Duplicates are rejected
-- Articles are persisted to the database
-- Unit test coverage ≥ 80%
+- Duplicate URLs and content hashes are rejected
+- Articles are persisted to the database with correct status transitions
+- Unit test coverage ≥ 80% for `sentinel/collector/`
+- Integration tests pass against local Docker Compose Postgres
 
 ### Dependencies
-Phase 1 complete. Postgres running.
+Phase 1 complete. Docker available. `CollectorProtocol` defined in `sentinel_core/interfaces/`.
 
 ### Complexity
 Medium.
@@ -110,7 +155,7 @@ Transform raw ingested articles into classified, scored, and entity-tagged signa
 ### Deliverables
 - `sentinel/processing/classifier.py` — topic and asset class classification
 - `sentinel/processing/scorer.py` — importance scoring
-- `sentinel/processing/extractor.py` — entity extraction (companies, people, countries)
+- `sentinel/processing/extractor.py` — entity extraction (companies, people, organisations)
 - `sentinel/processing/dedup.py` — semantic deduplication via embeddings
 - Unit and integration tests
 
@@ -131,11 +176,13 @@ High — LLM integration, embedding pipeline, and quality thresholds.
 
 **Status:** Planned
 
+> **Signal decision required before this phase begins.** The `Signal` concept (deferred from Phase 1) must be defined before the intelligence layer is designed. See `docs/06-phase-1-audit.md` §15, Q1.
+
 ### Objectives
-Synthesise processed signals into investment-grade insights.
+Synthesise processed articles into investment-grade market events and assemble the daily intelligence brief.
 
 ### Deliverables
-- `sentinel/intelligence/synthesiser.py` — multi-signal synthesis
+- `sentinel/intelligence/synthesiser.py` — MarketEvent synthesis from Articles
 - `sentinel/intelligence/analyst.py` — "why it matters" reasoning layer
 - `sentinel/intelligence/daily_brief.py` — daily brief assembly
 - Prompt templates versioned in `sentinel/intelligence/prompts/`
@@ -158,6 +205,8 @@ High — prompt engineering and output quality validation.
 
 **Status:** Planned
 
+> **Country model decision may arise in this phase.** If country-level knowledge base entries (India macro, US equities landscape) are required, a `Country` domain model will be introduced here. See `docs/06-phase-1-audit.md` §15, Q2.
+
 ### Objectives
 Build and maintain a structured, searchable knowledge base of entities, themes, and historical events.
 
@@ -165,7 +214,7 @@ Build and maintain a structured, searchable knowledge base of entities, themes, 
 - `sentinel/knowledge/company.py` — company profiles
 - `sentinel/knowledge/theme.py` — investment theme tracking
 - `sentinel/knowledge/person.py` — key person profiles
-- `sentinel/knowledge/country.py` — country/region profiles
+- `sentinel/knowledge/country.py` — country/region profiles (if `Country` model is introduced)
 - `sentinel/knowledge/event.py` — event history
 - Vector search via pgvector
 - Full-text search via PostgreSQL
@@ -244,7 +293,7 @@ Expose Sentinel capabilities via a FastAPI REST API.
 
 ### Deliverables
 - `sentinel/api/` — FastAPI application
-- Endpoints: articles, signals, briefs, search, entities
+- Endpoints: articles, market events, briefs, search, entities
 - Authentication (API key)
 - OpenAPI documentation
 
@@ -267,7 +316,7 @@ Medium.
 **Status:** Planned
 
 ### Objectives
-Provide an interactive intelligence dashboard.
+Provide an interactive intelligence dashboard and operational CLI.
 
 ### Deliverables
 - `sentinel/cli/` — Typer CLI for operational tasks
