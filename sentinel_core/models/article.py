@@ -194,7 +194,7 @@ class Article(SentinelModel):
 
     @field_validator("fetched_at", "published_at", mode="before")
     @classmethod
-    def _normalise_to_utc(cls, v: datetime | None) -> datetime | None:
+    def _normalise_article_datetime(cls, v: datetime | None) -> datetime | None:
         """Reject naive datetimes; normalise timezone-aware datetimes to UTC."""
         if v is None:
             return None

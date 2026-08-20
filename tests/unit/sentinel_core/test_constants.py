@@ -96,8 +96,10 @@ class TestConstantsConsistencyWithModels:
     def test_article_content_hash_length_matches_model(self) -> None:
         """The model rejects hashes shorter or longer than 64 chars."""
         from datetime import UTC, datetime
+        from typing import cast
         import uuid
 
+        from pydantic import HttpUrl
         from pydantic import ValidationError as PydanticValidationError
 
         from sentinel_core.models import Article
@@ -106,7 +108,7 @@ class TestConstantsConsistencyWithModels:
             Article(
                 source_id=uuid.uuid4(),
                 title="Test",
-                url="https://example.com/article",
+                url=cast("HttpUrl", "https://example.com/article"),
                 fetched_at=datetime.now(tz=UTC),
                 content_hash="short",  # Not 64 chars
             )
