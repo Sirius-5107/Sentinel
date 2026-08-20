@@ -104,7 +104,7 @@ Sentinel/
 
 ## Development Setup
 
-**Prerequisites:** Python 3.13, [uv](https://docs.astral.sh/uv/).
+**Prerequisites:** Python 3.13, [uv](https://docs.astral.sh/uv/), and Docker Desktop or a compatible local Docker runtime for the PostgreSQL development database.
 
 ```bash
 # Clone the repository
@@ -117,15 +117,41 @@ uv sync --all-extras
 # Copy and populate environment variables
 cp .env.example .env
 
-# Install pre-commit hooks
-uv run pre-commit install
+# Start the local PostgreSQL + pgvector development database
+docker compose -f infrastructure/compose/docker-compose.yml up -d
 
 # Verify the setup
 uv run ruff check .
 uv run pyright
 uv run pytest
+uv run pytest tests/integration/test_postgres_persistence.py -q
 uv run mkdocs build --strict
 ```
+
+### Local PostgreSQL development database
+
+The repository includes a minimal local PostgreSQL + pgvector stack for Phase 2 validation:
+
+```bash
+docker compose -f infrastructure/compose/docker-compose.yml up -d
+```
+
+This starts a containerised PostgreSQL instance with:
+
+- database: `sentinel`
+- user: `sentinel`
+- password: `sentinel`
+- port: `5432`
+- persistent local volume for database state
+- health check
+
+The default DSN format is:
+
+```text
+postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel
+```
+
+The SQLite unit tests remain available for fast local validation. PostgreSQL integration tests are opt-in and explicitly require the `SENTINEL_DB_URL` environment variable to start with `postgresql+psycopg://`.
 
 ---
 
