@@ -260,10 +260,57 @@ def test_partial_collection_failure(monkeypatch):
     assert res.total_persisted == 3
 
 
+
+
+@pytest.mark.unit
+def test_orchestrator_with_real_static_scraper(monkeypatch):
+    # Integration-style deterministic test: real StaticHTMLCollector via orchestrator
+    s = make_source("real", "https://real.example/story", SourceType.SCRAPE)
+
+    html = """
+    <html>
+      <head>
+        <link rel="canonical" href="https://real.example/canonical" />
+        <meta property="og:title" content="Real Article" />
+        <meta property="og:description" content="Real summary" />
+      </head>
+      <body>
+        <article>
+          <h1>Real Article</h1>
+          <p>Paragraph one.</p>
+        </article>
+      </body>
+    </html>
+    """
+
+    response = __import__('httpx').Response(200, text=html, request=__import__('httpx').Request("GET", str(s.url)))
+
+    import sentinel.services.collection as _svc
+    monkeypatch.setattr(_svc, "load_sources", lambda path=None: [s])
+
+    src_repo = MagicMock(spec=SourceRepository)
+    src_repo.save_source.side_effect = lambda s: s
+    art_repo = MagicMock(spec=ArticleRepository)
+    art_repo.save_article.side_effect = lambda a: a
+
+    from unittest.mock import AsyncMock, patch
+    # Patch HTTP to return the prepared response
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
+        orchestrator = CollectionOrchestrator(src_repo, art_repo)
+        res = orchestrator.run_once()
+
+    assert res.total_sources == 1
+    res_map = {r.source_name: r for r in res.source_results}
+    assert res_map["real"].success is True
+    assert res_map["real"].collected == 1
+    assert res.total_collected == 1
+
+
 __all__ = [
     "test_load_source_configs_and_load_sources",
     "test_collector_factory_selection",
     "test_orchestrator_success_and_failure",
     "test_unsupported_source_type",
     "test_partial_collection_failure",
+    "test_orchestrator_with_real_static_scraper",
 ]

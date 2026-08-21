@@ -42,7 +42,8 @@ def collector() -> StaticHTMLCollector:
 
 
 async def _collect_all(collector: StaticHTMLCollector, source: Source, run: PipelineRun) -> list:
-    return [article async for article in collector.collect(source, run)]
+    async_iter = await collector.collect(source, run)
+    return [article async for article in async_iter]
 
 
 @pytest.mark.asyncio

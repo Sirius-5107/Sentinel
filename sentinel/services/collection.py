@@ -20,6 +20,7 @@ from sentinel_core.exceptions.base import CollectionError
 from sentinel_core.models.pipeline_run import PipelineRun
 from sentinel_core.models.source import Source
 from sentinel_core.models.article import Article
+from sentinel_core.enums import SourceStatus
 
 
 @dataclass
@@ -69,6 +70,11 @@ class CollectionOrchestrator:
         results: List[SourceResult] = []
 
         for src in sources:
+            # Skip inactive sources early (do not persist or create collectors)
+            if src.status != SourceStatus.ACTIVE:
+                # intentionally skip paused/inactive sources
+                continue
+
             # Persist or reuse existing Source record
             try:
                 persisted = self._source_repository.save_source(src)

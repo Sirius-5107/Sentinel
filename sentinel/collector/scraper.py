@@ -41,44 +41,49 @@ class StaticHTMLCollector:
         source: Source,
         run: PipelineRun,
     ) -> AsyncIterator[Article]:
-        """Fetch the source.url and yield Article objects if extraction succeeds.
+        """Return an async iterator that yields Article objects if extraction succeeds.
 
-        Raises CollectionError for network/fatal errors. Skips and yields nothing
-        for pages that do not contain a valid article candidate.
+        The collector follows the same pattern as RSSCollector: collect is an async
+        function that returns an async iterator when awaited. This keeps the
+        collector API uniform so the orchestrator can await the coroutine to
+        obtain an async iterator.
         """
         del run
 
-        if source.source_type != SourceType.SCRAPE:
-            raise CollectionError(
-                f"StaticHTMLCollector requires source_type=SCRAPE; got {source.source_type!r}."
-            )
+        async def _generate() -> AsyncIterator[Article]:
+            if source.source_type != SourceType.SCRAPE:
+                raise CollectionError(
+                    f"StaticHTMLCollector requires source_type=SCRAPE; got {source.source_type!r}."
+                )
 
-        if source.status != SourceStatus.ACTIVE:
-            return
+            if source.status != SourceStatus.ACTIVE:
+                return
 
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(str(source.url))
-        except (httpx.InvalidURL, httpx.HTTPError, ValueError) as exc:
-            raise CollectionError(f"Failed to fetch source URL {source.url!s}: {exc}") from exc
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.get(str(source.url))
+            except (httpx.InvalidURL, httpx.HTTPError, ValueError) as exc:
+                raise CollectionError(f"Failed to fetch source URL {source.url!s}: {exc}") from exc
 
-        if response.status_code >= 400:
-            raise CollectionError(
-                f"Failed to fetch source URL {source.url!s}: HTTP {response.status_code}."
-            )
+            if response.status_code >= 400:
+                raise CollectionError(
+                    f"Failed to fetch source URL {source.url!s}: HTTP {response.status_code}."
+                )
 
-        if not response.text:
-            return
+            if not response.text:
+                return
 
-        try:
-            document = HTMLParser(response.text)
-        except Exception as exc:  # selectolax may raise on malformed content
-            # Treat parse errors as non-fatal: no article yielded
-            return
+            try:
+                document = HTMLParser(response.text)
+            except Exception:  # selectolax may raise on malformed content
+                # Treat parse errors as non-fatal: no article yielded
+                return
 
-        article = self._build_article(document, source)
-        if article is not None:
-            yield article
+            article = self._build_article(document, source)
+            if article is not None:
+                yield article
+
+        return _generate()
 
     def _build_article(self, document: Any, source: Source) -> Article | None:
         title = self._extract_title(document)
@@ -213,7 +218,7 @@ class StaticHTMLCollector:
             node = document.css_first(selector)
             if node is None:
                 continue
-            raw = node.attributes.get(attr) if attr in node.attributes else node.attributes.get(attr)
+            raw = node.attributes.get(attr)
             if not raw:
                 continue
             parsed = self._parse_datetime(raw)
