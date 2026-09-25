@@ -11,20 +11,19 @@ Responsibilities:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List
 
-from sentinel.config.loaders import load_sources
 from sentinel.collector.factory import get_collector_for_source
+from sentinel.config.loaders import load_sources
 from sentinel.db.repository import ArticleRepository, DuplicateArticleError, SourceRepository
+from sentinel_core.enums import SourceStatus
 from sentinel_core.exceptions.base import CollectionError
 from sentinel_core.models.pipeline_run import PipelineRun
-from sentinel_core.models.source import Source
-from sentinel_core.models.article import Article
-from sentinel_core.enums import SourceStatus
 
 
 @dataclass
 class SourceResult:
+    """Outcome of collecting a single source: success flag, error, and counts."""
+
     source_name: str
     success: bool
     error: str | None
@@ -34,8 +33,10 @@ class SourceResult:
 
 @dataclass
 class OrchestrationResult:
+    """Aggregate result of one collection run across all configured sources."""
+
     total_sources: int
-    source_results: List[SourceResult]
+    source_results: list[SourceResult]
     total_collected: int
     total_persisted: int
 
@@ -51,6 +52,7 @@ class CollectionOrchestrator:
         source_repository: SourceRepository,
         article_repository: ArticleRepository,
     ) -> None:
+        """Store the source and article repositories used for this run."""
         self._source_repository = source_repository
         self._article_repository = article_repository
 
@@ -67,7 +69,7 @@ class CollectionOrchestrator:
         sources = load_sources(path or "configs/sources.yaml")
         total_collected = 0
         total_persisted = 0
-        results: List[SourceResult] = []
+        results: list[SourceResult] = []
 
         for src in sources:
             # Skip inactive sources early (do not persist or create collectors)
@@ -112,10 +114,14 @@ class CollectionOrchestrator:
                 run = PipelineRun(trigger="manual")
                 import asyncio
 
-                async def _drive_and_persist():
+                async def _drive_and_persist() -> None:
                     nonlocal collected_count, persisted_count
-                    # await the collector coroutine to obtain an async iterator
-                    async_iter = await collector.collect(persisted, run)
+                    # `collector`, `persisted`, and `run` are captured from the
+                    # enclosing loop iteration. This is safe (not the late-binding
+                    # hazard B023 guards against) because the coroutine is created
+                    # and fully awaited via asyncio.run() below, within the same
+                    # iteration, before the loop variables are reassigned.
+                    async_iter = await collector.collect(persisted, run)  # noqa: B023
                     async for article in async_iter:
                         collected_count += 1
                         try:

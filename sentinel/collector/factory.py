@@ -7,14 +7,13 @@ from __future__ import annotations
 
 from sentinel.collector.rss import RSSCollector
 from sentinel.collector.scraper import StaticHTMLCollector
-from sentinel.collector.base import BaseCollector
-from sentinel_core.models.source import Source
 from sentinel_core.enums import SourceType
 from sentinel_core.exceptions.base import ConfigurationError
-from typing import Any, cast
+from sentinel_core.interfaces.protocols import CollectorProtocol
+from sentinel_core.models.source import Source
 
 
-def get_collector_for_source(source: Source) -> Any:
+def get_collector_for_source(source: Source) -> CollectorProtocol:
     """Return an application collector instance appropriate for the Source.
 
     Raises ConfigurationError for unsupported source types.

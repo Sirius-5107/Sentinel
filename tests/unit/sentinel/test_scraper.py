@@ -1,11 +1,9 @@
-﻿"""Unit tests for StaticHTMLCollector (Phase 2 milestone).
-"""
+"""Unit tests for StaticHTMLCollector (Phase 2 milestone)."""
 
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC
-from typing import cast
+import hashlib
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -84,15 +82,19 @@ async def test_collect_extracts_valid_article(collector, scrape_source, pipeline
     assert article.published_at.astimezone(UTC).isoformat() == "2026-08-20T12:30:00+00:00"
     assert article.status == "ingested"
     assert article.fetched_at.tzinfo is not None
-    assert article.content_hash == hashlib.sha256(
-        "Fed Holds Rates Steadyhttps://example.com/canonical-story".encode("utf-8")
-    ).hexdigest()
+    assert (
+        article.content_hash
+        == hashlib.sha256(b"Fed Holds Rates Steadyhttps://example.com/canonical-story").hexdigest()
+    )
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_title_and_fallbacks(collector, scrape_source, pipeline_run):
-    html = '<html><head><title>Fallback Title</title></head><body><h1>Heading Fallback</h1><article><p>Body text.</p></article></body></html>'
+    html = (
+        "<html><head><title>Fallback Title</title></head>"
+        "<body><h1>Heading Fallback</h1><article><p>Body text.</p></article></body></html>"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -103,7 +105,10 @@ async def test_title_and_fallbacks(collector, scrape_source, pipeline_run):
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_canonical_and_fallback_url(collector, scrape_source, pipeline_run):
-    html = '<html><head><meta property="og:url" content="https://example.com/og-url" /></head><body><article><h1>Example</h1><p>Body text.</p></article></body></html>'
+    html = (
+        '<html><head><meta property="og:url" content="https://example.com/og-url" /></head>'
+        "<body><article><h1>Example</h1><p>Body text.</p></article></body></html>"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -113,7 +118,11 @@ async def test_canonical_and_fallback_url(collector, scrape_source, pipeline_run
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_summary_only_content_allowed(collector, scrape_source, pipeline_run):
-    html = '<html><head><meta property="og:title" content="No Full Content" /><meta property="og:description" content="A summary only." /></head><body><main><nav>Links</nav><p>Navigation text.</p></main></body></html>'
+    html = (
+        '<html><head><meta property="og:title" content="No Full Content" />'
+        '<meta property="og:description" content="A summary only." /></head>'
+        "<body><main><nav>Links</nav><p>Navigation text.</p></main></body></html>"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -125,7 +134,7 @@ async def test_summary_only_content_allowed(collector, scrape_source, pipeline_r
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_skip_when_no_title_or_content(collector, scrape_source, pipeline_run):
-    html = '<html><body><div>There is no article.</div></body></html>'
+    html = "<html><body><div>There is no article.</div></body></html>"
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -135,7 +144,10 @@ async def test_skip_when_no_title_or_content(collector, scrape_source, pipeline_
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_missing_publication_date_allowed(collector, scrape_source, pipeline_run):
-    html = '<html><head><title>Article without date</title></head><body><article><h1>Article without date</h1><p>Body text.</p></article></body></html>'
+    html = (
+        "<html><head><title>Article without date</title></head>"
+        "<body><article><h1>Article without date</h1><p>Body text.</p></article></body></html>"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -146,7 +158,10 @@ async def test_missing_publication_date_allowed(collector, scrape_source, pipeli
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_invalid_or_missing_title_skipped(collector, scrape_source, pipeline_run):
-    html = '<html><head><meta property="og:url" content="https://example.com/article" /></head><body><div>Just a page.</div></body></html>'
+    html = (
+        '<html><head><meta property="og:url" content="https://example.com/article" /></head>'
+        "<body><div>Just a page.</div></body></html>"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -157,40 +172,51 @@ async def test_invalid_or_missing_title_skipped(collector, scrape_source, pipeli
 @pytest.mark.unit
 async def test_http_error_raises_collection_error(collector, scrape_source, pipeline_run):
     response = httpx.Response(500, text="err", request=httpx.Request("GET", str(scrape_source.url)))
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
-        with pytest.raises(CollectionError):
-            await _collect_all(collector, scrape_source, pipeline_run)
+    with (
+        patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response),
+        pytest.raises(CollectionError),
+    ):
+        await _collect_all(collector, scrape_source, pipeline_run)
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_timeout_raises_collection_error(collector, scrape_source, pipeline_run):
-    with patch(
-        "httpx.AsyncClient.get",
-        new_callable=AsyncMock,
-        side_effect=httpx.TimeoutException("timed out", request=httpx.Request("GET", str(scrape_source.url))),
+    with (
+        patch(
+            "httpx.AsyncClient.get",
+            new_callable=AsyncMock,
+            side_effect=httpx.TimeoutException(
+                "timed out", request=httpx.Request("GET", str(scrape_source.url))
+            ),
+        ),
+        pytest.raises(CollectionError),
     ):
-        with pytest.raises(CollectionError):
-            await _collect_all(collector, scrape_source, pipeline_run)
+        await _collect_all(collector, scrape_source, pipeline_run)
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_invalid_source_url_raises_collection_error(collector, scrape_source, pipeline_run):
     # Simulate httpx raising an InvalidURL when attempting to fetch the source
-    with patch(
-        "httpx.AsyncClient.get",
-        new_callable=AsyncMock,
-        side_effect=httpx.InvalidURL("invalid url"),
+    with (
+        patch(
+            "httpx.AsyncClient.get",
+            new_callable=AsyncMock,
+            side_effect=httpx.InvalidURL("invalid url"),
+        ),
+        pytest.raises(CollectionError),
     ):
-        with pytest.raises(CollectionError):
-            await _collect_all(collector, scrape_source, pipeline_run)
+        await _collect_all(collector, scrape_source, pipeline_run)
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_malformed_html_handled(collector, scrape_source, pipeline_run):
-    html = '<html><head><meta property="og:title" content="Broken"><body><article><p>Missing closing tag'
+    html = (
+        '<html><head><meta property="og:title" content="Broken">'
+        "<body><article><p>Missing closing tag"
+    )
     response = httpx.Response(200, text=html, request=httpx.Request("GET", str(scrape_source.url)))
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         articles = await _collect_all(collector, scrape_source, pipeline_run)
@@ -208,4 +234,3 @@ async def test_respects_source_status_and_type(collector, scrape_source, pipelin
     rss = Source(**{**scrape_source.model_dump(), "source_type": SourceType.RSS})
     with pytest.raises(CollectionError):
         await _collect_all(collector, rss, pipeline_run)
-

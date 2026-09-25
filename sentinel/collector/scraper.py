@@ -1,4 +1,4 @@
-﻿"""Static HTML collector for SourceType.SCRAPE (Phase 2 milestone).
+"""Static HTML collector for SourceType.SCRAPE (Phase 2 milestone).
 
 This collector fetches a single static page and attempts to extract an
 Article domain object. It implements the CollectorProtocol contract by
@@ -8,14 +8,14 @@ no persistence.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any, Final
+import hashlib
+from typing import Final
 from urllib.parse import urljoin
 
 import httpx
-from selectolax.parser import HTMLParser
+from selectolax.parser import HTMLParser, Node
 
 from sentinel_core.enums import ArticleStatus, SourceStatus, SourceType
 from sentinel_core.exceptions.base import CollectionError
@@ -34,6 +34,7 @@ class StaticHTMLCollector:
     """
 
     def __init__(self, timeout: float = _DEFAULT_TIMEOUT) -> None:
+        """Initialise the collector with an HTTP request timeout in seconds."""
         self.timeout = timeout
 
     async def collect(
@@ -85,7 +86,7 @@ class StaticHTMLCollector:
 
         return _generate()
 
-    def _build_article(self, document: Any, source: Source) -> Article | None:
+    def _build_article(self, document: HTMLParser, source: Source) -> Article | None:
         title = self._extract_title(document)
         if not title:
             return None
@@ -123,33 +124,30 @@ class StaticHTMLCollector:
 
         return article
 
-    def _extract_title(self, document: Any) -> str | None:
+    def _extract_title(self, document: HTMLParser) -> str | None:
         # Priority: og:title, twitter:title, <title>, first <h1>
         selectors = (
-            ('meta[property="og:title"]', 'content'),
-            ('meta[name="twitter:title"]', 'content'),
-            ('title', None),
-            ('h1', None),
+            ('meta[property="og:title"]', "content"),
+            ('meta[name="twitter:title"]', "content"),
+            ("title", None),
+            ("h1", None),
         )
         for selector, attr in selectors:
             node = document.css_first(selector)
             if node is None:
                 continue
-            if attr:
-                value = node.attributes.get(attr)
-            else:
-                value = node.text()
+            value = node.attributes.get(attr) if attr else node.text()
             clean = self._clean_text(value)
             if clean:
                 return clean
         return None
 
-    def _extract_canonical_url(self, document: Any, source: Source) -> str | None:
+    def _extract_canonical_url(self, document: HTMLParser, source: Source) -> str | None:
         # Priority: link[rel=canonical], og:url, twitter:url, fall back to source.url
         selectors = (
-            ('link[rel="canonical"]', 'href'),
-            ('meta[property="og:url"]', 'content'),
-            ('meta[name="twitter:url"]', 'content'),
+            ('link[rel="canonical"]', "href"),
+            ('meta[property="og:url"]', "content"),
+            ('meta[name="twitter:url"]', "content"),
         )
         for selector, attr in selectors:
             node = document.css_first(selector)
@@ -165,11 +163,11 @@ class StaticHTMLCollector:
         # Fall back to the source URL
         return str(source.url)
 
-    def _extract_summary(self, document: Any) -> str | None:
+    def _extract_summary(self, document: HTMLParser) -> str | None:
         selectors = (
-            ('meta[property="og:description"]', 'content'),
-            ('meta[name="description"]', 'content'),
-            ('meta[name="twitter:description"]', 'content'),
+            ('meta[property="og:description"]', "content"),
+            ('meta[name="description"]', "content"),
+            ('meta[name="twitter:description"]', "content"),
         )
         for selector, attr in selectors:
             node = document.css_first(selector)
@@ -181,17 +179,17 @@ class StaticHTMLCollector:
                 return summary
         return None
 
-    def _extract_content(self, document: Any) -> str | None:
+    def _extract_content(self, document: HTMLParser) -> str | None:
         # Candidate containers in order of preference
         selectors = (
-            'article',
-            'div.article-body',
-            'section.article-body',
-            'div.entry-content',
-            'div.post-content',
-            'div.story-content',
-            '.article-content',
-            '.content',
+            "article",
+            "div.article-body",
+            "section.article-body",
+            "div.entry-content",
+            "div.post-content",
+            "div.story-content",
+            ".article-content",
+            ".content",
         )
         for sel in selectors:
             node = document.css_first(sel)
@@ -201,18 +199,18 @@ class StaticHTMLCollector:
             if text and len(text) >= 10:
                 return text
         # Try to find longest paragraph cluster
-        paras = [self._clean_text(n.text()) for n in document.css('p') if n and n.text()]
+        paras = [self._clean_text(n.text()) for n in document.css("p") if n and n.text()]
         paras = [p for p in paras if len(p) >= 20]
         if paras:
-            return '\n\n'.join(paras)
+            return "\n\n".join(paras)
         return None
 
-    def _extract_published_at(self, document: Any) -> datetime | None:
+    def _extract_published_at(self, document: HTMLParser) -> datetime | None:
         selectors = (
-            ('meta[property="article:published_time"]', 'content'),
-            ('meta[name="pubdate"]', 'content'),
-            ('meta[name="date"]', 'content'),
-            ('time[datetime]', 'datetime'),
+            ('meta[property="article:published_time"]', "content"),
+            ('meta[name="pubdate"]', "content"),
+            ('meta[name="date"]', "content"),
+            ("time[datetime]", "datetime"),
         )
         for selector, attr in selectors:
             node = document.css_first(selector)
@@ -226,25 +224,25 @@ class StaticHTMLCollector:
                 return parsed
         return None
 
-    def _candidate_text(self, node: Any) -> str:
+    def _candidate_text(self, node: Node) -> str:
         # Collect text from paragraph-like children while avoiding nav/footer/script/style
         parts: list[str] = []
-        for child in node.css('p, li, blockquote, h2, h3, h4'):
+        for child in node.css("p, li, blockquote, h2, h3, h4"):
             text = self._clean_text(child.text())
             if not text:
                 continue
             parts.append(text)
         if parts:
-            return '\n\n'.join(parts)
+            return "\n\n".join(parts)
         # Fallback: plain node text
         return self._clean_text(node.text())
 
     def _parse_datetime(self, raw_value: str) -> datetime | None:
-        v = (raw_value or '').strip()
+        v = (raw_value or "").strip()
         if not v:
             return None
-        if v.endswith('Z'):
-            v = v[:-1] + '+00:00'
+        if v.endswith("Z"):
+            v = v[:-1] + "+00:00"
         try:
             parsed = datetime.fromisoformat(v)
         except Exception:
@@ -257,9 +255,9 @@ class StaticHTMLCollector:
         if not raw_url:
             return None
         val = raw_url.strip()
-        if val.startswith('//'):
-            val = 'https:' + val
-        if val.startswith('http://') or val.startswith('https://'):
+        if val.startswith("//"):
+            val = "https:" + val
+        if val.startswith("http://") or val.startswith("https://"):
             return val
         try:
             return urljoin(base, val)
@@ -268,10 +266,9 @@ class StaticHTMLCollector:
 
     def _hash_content(self, title: str, url: str) -> str:
         raw = f"{title}{url}"
-        return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def _clean_text(self, value: str | None) -> str:
         if not value:
-            return ''
-        return ' '.join(value.split())
-
+            return ""
+        return " ".join(value.split())

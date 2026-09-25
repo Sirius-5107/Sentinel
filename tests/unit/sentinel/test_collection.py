@@ -6,22 +6,19 @@ collectors are mocked to exercise orchestration logic and failure isolation.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sentinel.config.loaders import load_source_configs, load_sources
 from sentinel.collector.factory import get_collector_for_source
+from sentinel.config.loaders import load_source_configs, load_sources
+from sentinel.db.repository import ArticleRepository, DuplicateArticleError, SourceRepository
 from sentinel.services.collection import CollectionOrchestrator, OrchestrationResult
-from sentinel_core.enums import SourceType, SourceStatus
+from sentinel_core.enums import ArticleStatus, AssetClass, MarketRegion, SourceStatus, SourceType
+from sentinel_core.models.article import Article
 from sentinel_core.models.source import Source
 from sentinel_core.types import Url
-from sentinel.db.repository import ArticleRepository, SourceRepository, DuplicateArticleError
-from sentinel_core.models.article import Article
-from datetime import UTC, datetime
-
-
-from sentinel_core.enums import AssetClass, MarketRegion, ArticleStatus
 
 
 def make_source(name: str, url: str, source_type: SourceType, enabled: bool = True) -> Source:
@@ -37,7 +34,9 @@ def make_source(name: str, url: str, source_type: SourceType, enabled: bool = Tr
 
 
 class DummyCollector:
-    def __init__(self, articles: list[Article] | None = None, raise_on_collect: Exception | None = None):
+    def __init__(
+        self, articles: list[Article] | None = None, raise_on_collect: Exception | None = None
+    ):
         self._articles = articles or []
         self._raise = raise_on_collect
 
@@ -89,7 +88,7 @@ def test_orchestrator_success_and_failure(monkeypatch):
         fetched_at=datetime.now(tz=UTC),
         language="en",
         status=ArticleStatus.INGESTED,
-        content_hash=__import__('hashlib').sha256(b'h1').hexdigest(),
+        content_hash=__import__("hashlib").sha256(b"h1").hexdigest(),
     )
     a2 = Article(
         source_id=s1.id,
@@ -101,11 +100,12 @@ def test_orchestrator_success_and_failure(monkeypatch):
         fetched_at=datetime.now(tz=UTC),
         language="en",
         status=ArticleStatus.INGESTED,
-        content_hash=__import__('hashlib').sha256(b'h2').hexdigest(),
+        content_hash=__import__("hashlib").sha256(b"h2").hexdigest(),
     )
 
     # Mock load_sources (imported in the orchestrator module) to return s1 and s2
     import sentinel.services.collection as _svc
+
     monkeypatch.setattr(_svc, "load_sources", lambda path=None: [s1, s2])
 
     # Mock source repository to echo back the source
@@ -126,11 +126,16 @@ def test_orchestrator_success_and_failure(monkeypatch):
 
     # Mock factory to return DummyCollectors
     from sentinel_core.exceptions.base import CollectionError
+
     # Patch the factory function used by the orchestrator module
     monkeypatch.setattr(
-    _svc,
-    "get_collector_for_source",
-    lambda s: DummyCollector(articles=[a1, a2]) if s.name == "S1" else DummyCollector(raise_on_collect=CollectionError("fail")),
+        _svc,
+        "get_collector_for_source",
+        lambda s: (
+            DummyCollector(articles=[a1, a2])
+            if s.name == "S1"
+            else DummyCollector(raise_on_collect=CollectionError("fail"))
+        ),
     )
 
     orchestrator = CollectionOrchestrator(src_repo, art_repo)
@@ -152,6 +157,7 @@ def test_orchestrator_success_and_failure(monkeypatch):
 def test_unsupported_source_type(monkeypatch):
     s = make_source("unsupported", "https://x", SourceType.API)
     import sentinel.services.collection as _svc
+
     monkeypatch.setattr(_svc, "load_sources", lambda path=None: [s])
 
     src_repo = MagicMock(spec=SourceRepository)
@@ -181,7 +187,7 @@ def test_partial_collection_failure(monkeypatch):
         fetched_at=datetime.now(tz=UTC),
         language="en",
         status=ArticleStatus.INGESTED,
-        content_hash=__import__('hashlib').sha256(b'p1').hexdigest(),
+        content_hash=__import__("hashlib").sha256(b"p1").hexdigest(),
     )
     a2 = Article(
         source_id=s1.id,
@@ -193,7 +199,7 @@ def test_partial_collection_failure(monkeypatch):
         fetched_at=datetime.now(tz=UTC),
         language="en",
         status=ArticleStatus.INGESTED,
-        content_hash=__import__('hashlib').sha256(b'p2').hexdigest(),
+        content_hash=__import__("hashlib").sha256(b"p2").hexdigest(),
     )
     b1 = Article(
         source_id=s2.id,
@@ -205,10 +211,11 @@ def test_partial_collection_failure(monkeypatch):
         fetched_at=datetime.now(tz=UTC),
         language="en",
         status=ArticleStatus.INGESTED,
-        content_hash=__import__('hashlib').sha256(b'b1').hexdigest(),
+        content_hash=__import__("hashlib").sha256(b"b1").hexdigest(),
     )
 
     import sentinel.services.collection as _svc
+
     monkeypatch.setattr(_svc, "load_sources", lambda path=None: [s1, s2])
 
     src_repo = MagicMock(spec=SourceRepository)
@@ -235,7 +242,9 @@ def test_partial_collection_failure(monkeypatch):
     monkeypatch.setattr(
         _svc,
         "get_collector_for_source",
-        lambda s: PartialFailCollector([a1, a2]) if s.name == "S1" else DummyCollector(articles=[b1]),
+        lambda s: (
+            PartialFailCollector([a1, a2]) if s.name == "S1" else DummyCollector(articles=[b1])
+        ),
     )
 
     orchestrator = CollectionOrchestrator(src_repo, art_repo)
@@ -246,7 +255,9 @@ def test_partial_collection_failure(monkeypatch):
 
     # S1 should be marked failed with counts preserved
     assert res_map["S1"].success is False
-    assert "Collection error" in (res_map["S1"].error or "") or "midstream-failure" in (res_map["S1"].error or "")
+    assert "Collection error" in (res_map["S1"].error or "") or "midstream-failure" in (
+        res_map["S1"].error or ""
+    )
     assert res_map["S1"].collected == 2
     assert res_map["S1"].persisted == 2
 
@@ -258,8 +269,6 @@ def test_partial_collection_failure(monkeypatch):
     # Totals include partial counts from the failed source
     assert res.total_collected == 3
     assert res.total_persisted == 3
-
-
 
 
 @pytest.mark.unit
@@ -283,9 +292,12 @@ def test_orchestrator_with_real_static_scraper(monkeypatch):
     </html>
     """
 
-    response = __import__('httpx').Response(200, text=html, request=__import__('httpx').Request("GET", str(s.url)))
+    response = __import__("httpx").Response(
+        200, text=html, request=__import__("httpx").Request("GET", str(s.url))
+    )
 
     import sentinel.services.collection as _svc
+
     monkeypatch.setattr(_svc, "load_sources", lambda path=None: [s])
 
     src_repo = MagicMock(spec=SourceRepository)
@@ -293,7 +305,8 @@ def test_orchestrator_with_real_static_scraper(monkeypatch):
     art_repo = MagicMock(spec=ArticleRepository)
     art_repo.save_article.side_effect = lambda a: a
 
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock
+
     # Patch HTTP to return the prepared response
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=response):
         orchestrator = CollectionOrchestrator(src_repo, art_repo)
@@ -307,10 +320,10 @@ def test_orchestrator_with_real_static_scraper(monkeypatch):
 
 
 __all__ = [
-    "test_load_source_configs_and_load_sources",
     "test_collector_factory_selection",
+    "test_load_source_configs_and_load_sources",
     "test_orchestrator_success_and_failure",
-    "test_unsupported_source_type",
-    "test_partial_collection_failure",
     "test_orchestrator_with_real_static_scraper",
+    "test_partial_collection_failure",
+    "test_unsupported_source_type",
 ]
