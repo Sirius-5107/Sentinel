@@ -2,28 +2,26 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
-import feedparser
-import pytest
 from alembic import command
 from alembic.config import Config
+import feedparser
 from pydantic import HttpUrl
-from sqlalchemy import create_engine, select
+import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from sentinel.collector.rss import RSSCollector
 from sentinel.config import load_sources
-from sentinel.db.models import ArticleORM, Base, SourceORM
+from sentinel.db.models import Base
 from sentinel.db.repository import ArticleRepository, DuplicateArticleError, SourceRepository
 from sentinel.services.ingestion import IngestionService
 from sentinel_core.enums import AssetClass, MarketRegion, SourceStatus, SourceType
 from sentinel_core.models.article import Article
 from sentinel_core.models.pipeline_run import PipelineRun
 from sentinel_core.models.source import Source
-
 
 TEST_RSS_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <rss version=\"2.0\">
@@ -106,10 +104,10 @@ async def test_rss_collector_skips_invalid_entries() -> None:
 def test_repository_rejects_duplicate_url_and_hash() -> None:
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
-    repo = ArticleRepository(lambda: SessionLocal())
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    repo = ArticleRepository(lambda: session_local())
     source = _build_source()
-    source_repo = SourceRepository(lambda: SessionLocal())
+    source_repo = SourceRepository(lambda: session_local())
     source_repo.save_source(source)
 
     first = Article(
@@ -149,9 +147,9 @@ def test_repository_rejects_duplicate_url_and_hash() -> None:
 def test_source_and_article_repository_persistence() -> None:
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
-    source_repo = SourceRepository(lambda: SessionLocal())
-    article_repo = ArticleRepository(lambda: SessionLocal())
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
 
     source = _build_source()
     saved_source = source_repo.save_source(source)
@@ -192,9 +190,9 @@ def test_alembic_initial_schema_creates_tables() -> None:
 async def test_ingestion_service_persists_articles_from_rss_feed() -> None:
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
-    source_repo = SourceRepository(lambda: SessionLocal())
-    article_repo = ArticleRepository(lambda: SessionLocal())
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
     collector = RSSCollector(parser=lambda _: feedparser.parse(TEST_RSS_XML))
     service = IngestionService(source_repo, article_repo, collector)
 

@@ -21,13 +21,13 @@ class SourceRepository:
     """Application-layer persistence for Source records."""
 
     def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using a SQLAlchemy session factory."""
         self._session_factory = session_factory
 
     def save_source(self, source: Source) -> Source:
+        """Save a source or return the existing persisted row for the same name."""
         with self._session_factory() as session:
-            existing = session.scalar(
-                select(SourceORM).where(SourceORM.name == source.name)
-            )
+            existing = session.scalar(select(SourceORM).where(SourceORM.name == source.name))
             if existing is not None:
                 return existing.to_domain()
 
@@ -42,6 +42,7 @@ class SourceRepository:
             return orm.to_domain()
 
     def get_by_name(self, name: str) -> Source | None:
+        """Return a persisted source by name, if it exists."""
         with self._session_factory() as session:
             row = session.scalar(select(SourceORM).where(SourceORM.name == name))
             return row.to_domain() if row is not None else None
@@ -51,18 +52,24 @@ class ArticleRepository:
     """Application-layer persistence for Article records."""
 
     def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using a SQLAlchemy session factory."""
         self._session_factory = session_factory
 
     def save_article(self, article: Article) -> Article:
+        """Persist a new article unless URL or hash already exists."""
         with self._session_factory() as session:
-            if session.scalar(
-                select(ArticleORM.id).where(ArticleORM.url == str(article.url))
-            ) is not None:
+            if (
+                session.scalar(select(ArticleORM.id).where(ArticleORM.url == str(article.url)))
+                is not None
+            ):
                 raise DuplicateArticleError(f"Article URL already exists: {article.url}")
 
-            if session.scalar(
-                select(ArticleORM.id).where(ArticleORM.content_hash == article.content_hash)
-            ) is not None:
+            if (
+                session.scalar(
+                    select(ArticleORM.id).where(ArticleORM.content_hash == article.content_hash)
+                )
+                is not None
+            ):
                 raise DuplicateArticleError(
                     f"Article content hash already exists: {article.content_hash}"
                 )
@@ -80,11 +87,13 @@ class ArticleRepository:
             return orm.to_domain()
 
     def get_by_url(self, url: str) -> Article | None:
+        """Return a persisted article by URL, if it exists."""
         with self._session_factory() as session:
             row = session.scalar(select(ArticleORM).where(ArticleORM.url == url))
             return row.to_domain() if row is not None else None
 
     def get_by_content_hash(self, content_hash: str) -> Article | None:
+        """Return a persisted article by content hash, if it exists."""
         with self._session_factory() as session:
             row = session.scalar(select(ArticleORM).where(ArticleORM.content_hash == content_hash))
             return row.to_domain() if row is not None else None

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import os
-from typing import Any, Iterator
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from sentinel.db.models import Base
@@ -18,7 +19,6 @@ def get_database_url() -> str:
     SQLAlchemy PostgreSQL DSN format used by the local development stack:
     postgresql+psycopg://user:password@host:port/dbname
     """
-
     configured_url = os.getenv("SENTINEL_DB_URL")
     if configured_url:
         return configured_url
@@ -31,15 +31,17 @@ def get_database_url() -> str:
 
     if db_host and db_name and db_user:
         return (
-            f"postgresql+psycopg://{db_user}:{db_password or ''}@{db_host}:{db_port or 5432}/{db_name}"
+            "postgresql+psycopg://"
+            f"{db_user}:{db_password or ''}@{db_host}:{db_port or 5432}/{db_name}"
         )
 
     return "sqlite:///./sentinel_phase2.db"
 
 
-def _build_engine() -> Any:
+def _build_engine() -> Engine:
+    """Create the SQLAlchemy engine for the configured database URL."""
     database_url = get_database_url()
-    engine_kwargs: dict[str, Any] = {"future": True}
+    engine_kwargs: dict[str, object] = {"future": True}
     if database_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
     return create_engine(database_url, **engine_kwargs)
@@ -51,13 +53,11 @@ session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=Fa
 
 def create_all() -> None:
     """Create the application schema bound to the configured database URL."""
-
     Base.metadata.create_all(bind=engine)
 
 
 def get_session() -> Iterator[Session]:
     """Yield a SQLAlchemy session for repository operations."""
-
     session = session_factory()
     try:
         yield session

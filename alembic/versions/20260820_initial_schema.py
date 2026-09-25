@@ -1,14 +1,14 @@
-"""Initial database schema for Phase 2 persistence baseline.
+"""Initial database schema for the Phase 2 persistence baseline.
 
 Revision ID: 20260820_initial_schema
-Revises: 
+Revises:
 Create Date: 2026-08-20 17:35:00.000000
 """
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "20260820_initial_schema"
@@ -18,6 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create the initial source and article tables."""
     op.create_table(
         "sources",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -71,5 +72,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the initial source and article tables."""
     op.drop_table("articles")
     op.drop_table("sources")
