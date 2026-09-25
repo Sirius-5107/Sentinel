@@ -2,7 +2,7 @@
 
 This document describes the phased delivery of Sentinel. Each phase has clear objectives, deliverables, exit criteria, dependencies, and a complexity estimate. Phases are sequential — the exit criteria of each phase must be met before the next begins.
 
-> **Reconciliation note (2026-08-16):** This document was updated to reflect the canonical Phase 1 scope as defined in `docs/05-contracts.md`, which supersedes the original Phase 1 deliverables list. Specifically: (a) persistence moves to Phase 2; (b) stale model names (`Entity`, `Event`, `Signal`, `Report`) are replaced with the concrete implemented models; (c) `Signal` and `Country` are formally deferred; (d) Phase 0 status corrected to Complete. See `docs/06-phase-1-audit.md` for the full reconciliation audit.
+> **Reconciliation note (2026-08-16):** This document was updated to reflect the canonical Phase 1 scope as defined in `docs/05-contracts.md`, which supersedes the original Phase 1 deliverables list. Specifically: (a) persistence moves to Phase 2; (b) stale model names (`Entity`, `Event`, `Signal`, `Report`) are replaced with the concrete implemented models; (c) `Signal` and `Country` were initially deferred. The Phase 4 architecture decision now formally resolves `Signal` as a conceptual term only: `MarketEvent` is the canonical intelligence/signal object. `Country` remains deferred to Phase 5. See `docs/decisions/ADR-0002-market-event-as-signal.md`.
 
 ---
 
@@ -66,7 +66,7 @@ The following twelve models are the authoritative Phase 1 domain model, as speci
 | `PipelineRun` | End-to-end pipeline execution audit record |
 | `Task` | Atomic unit of work within a pipeline run |
 
-> **Deferred — `Signal`:** The term `Signal` appears in earlier documentation but has no formal model definition. Its intended meaning (synonym for MarketEvent, curated subset, or intermediate layer) is unresolved. Decision is deferred to Phase 4 (Intelligence). See `docs/06-phase-1-audit.md` §15.
+> **Resolved — `Signal`:** `Signal` is a conceptual term, not a domain model. `MarketEvent` is Sentinel's canonical intelligence/signal object. Do not introduce a separate `Signal` model or intermediate signal layer unless a future architecture decision establishes a distinct semantic need. See `docs/decisions/ADR-0002-market-event-as-signal.md`.
 
 > **Deferred — `Country`:** A `Country` knowledge-base entity may be needed for Phase 5. The `CountryCode` value object is sufficient for Phase 1. A full `Country` model will be introduced only if Phase 5 use cases require it.
 
@@ -183,22 +183,43 @@ High — provider boundaries, deterministic fallback behaviour, and validation s
 
 **Status:** Planned
 
-> **Signal decision required before this phase begins.** The `Signal` concept (deferred from Phase 1) must be defined before the intelligence layer is designed. See `docs/06-phase-1-audit.md` §15, Q1.
+> **Architecture decision resolved:** `Signal` is not a separate domain model. `MarketEvent` is the canonical intelligence/signal object. Phase 4 therefore operates directly on `Processed Article → MarketEvent → ReportSection → DailyReport`. See `docs/decisions/ADR-0002-market-event-as-signal.md`.
 
 ### Objectives
-Synthesise processed articles into investment-grade market events and assemble the daily intelligence brief.
+Synthesise processed articles into evidence-backed `MarketEvent` objects, analyse their implications, and assemble the daily intelligence brief.
+
+### Core Flow
+`Processed Articles → event synthesis → MarketEvents → analysis → ReportSections → DailyReport`
+
+`MarketEvent` is the canonical intelligence object. There is no separate `Signal` model.
 
 ### Deliverables
-- `sentinel/intelligence/synthesiser.py` — MarketEvent synthesis from Articles
-- `sentinel/intelligence/analyst.py` — "why it matters" reasoning layer
-- `sentinel/intelligence/daily_brief.py` — daily brief assembly
+- `sentinel/intelligence/synthesiser.py` — group related processed articles and produce validated `MarketEvent` candidates
+- `sentinel/intelligence/analyst.py` — analyse implications and "why it matters" using only supported event/evidence context
+- `sentinel/intelligence/daily_brief.py` — assemble `ReportSection` and `DailyReport` outputs
 - Prompt templates versioned in `sentinel/intelligence/prompts/`
+- Provenance/evidence handling so every persisted `MarketEvent` has at least one source Article
+- Structured LLM output validation and deterministic rejection/fallback for malformed or unsupported output
+- LLM usage and cost accounting per intelligence run / daily brief
 - Unit and integration tests
 
+### Architecture Rules
+- `Article` remains the evidence unit; raw evidence is never rewritten by intelligence.
+- One `MarketEvent` may be supported by multiple Articles.
+- One Article may support multiple independently justified MarketEvents.
+- LLM output is a candidate, never an implicitly trusted domain object.
+- Analysts may derive implications but must not introduce unsupported factual claims.
+- Phase 4 does not introduce `Signal`, `Insight`, or other generic intelligence models.
+- Persistence and external providers remain behind the existing application-layer boundaries.
+
 ### Exit Criteria
-- Daily brief generated on schedule
-- Every insight links to at least one source article
-- LLM cost tracked per brief
+- Every persisted `MarketEvent` has at least one source Article
+- Related Articles can be synthesised into a single event without losing provenance
+- Invalid or unsupported LLM output cannot bypass domain validation
+- ReportSections and DailyReports are assembled deterministically from validated events
+- Every report insight/section can be traced to one or more source Articles through its MarketEvents
+- LLM usage and cost are tracked for each intelligence run / daily brief
+- Re-running the same input is idempotent or produces a documented deterministic reconciliation path
 
 ### Dependencies
 Phase 3 complete.
