@@ -2,26 +2,25 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
+import os
 
-import feedparser
-import pytest
 from alembic import command
 from alembic.config import Config
+import feedparser
 from pydantic import HttpUrl
+import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from sentinel.collector.rss import RSSCollector
-from sentinel.db.models import ArticleORM, Base, SourceORM
+from sentinel.db.models import ArticleORM, SourceORM
 from sentinel.db.repository import ArticleRepository, DuplicateArticleError, SourceRepository
 from sentinel.services.ingestion import IngestionService
 from sentinel_core.enums import AssetClass, MarketRegion, SourceStatus, SourceType
 from sentinel_core.models.article import Article
-from sentinel_core.models.pipeline_run import PipelineRun
 from sentinel_core.models.source import Source
 
 pytestmark = pytest.mark.integration
@@ -96,9 +95,11 @@ def test_postgres_alembic_upgrade_from_clean_database(postgres_engine: Engine) -
 
 
 def test_postgres_source_and_article_persistence(postgres_engine: Engine) -> None:
-    SessionLocal = sessionmaker(bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True)
-    source_repo = SourceRepository(lambda: SessionLocal())
-    article_repo = ArticleRepository(lambda: SessionLocal())
+    session_local = sessionmaker(
+        bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True
+    )
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
 
     source = _build_source("Postgres Source")
     saved_source = source_repo.save_source(source)
@@ -125,9 +126,11 @@ def test_postgres_source_and_article_persistence(postgres_engine: Engine) -> Non
 
 
 def test_postgres_duplicate_url_and_hash_are_rejected(postgres_engine: Engine) -> None:
-    SessionLocal = sessionmaker(bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True)
-    source_repo = SourceRepository(lambda: SessionLocal())
-    article_repo = ArticleRepository(lambda: SessionLocal())
+    session_local = sessionmaker(
+        bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True
+    )
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
 
     source = _build_source("Postgres Duplicate Source")
     saved_source = source_repo.save_source(source)
@@ -167,17 +170,21 @@ def test_postgres_duplicate_url_and_hash_are_rejected(postgres_engine: Engine) -
 
 @pytest.mark.asyncio
 async def test_postgres_rss_ingestion_to_postgres(postgres_engine: Engine) -> None:
-    SessionLocal = sessionmaker(bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True)
-    source_repo = SourceRepository(lambda: SessionLocal())
-    article_repo = ArticleRepository(lambda: SessionLocal())
-    collector = RSSCollector(parser=lambda _: feedparser.parse(
-        """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-        <rss version=\"2.0\"><channel><title>Example</title><link>https://example.com</link>
-        <item><title>Fed holds rates steady</title><link>https://example.com/articles/fed-rates</link>
-        <guid>fed-rates</guid><pubDate>Mon, 19 Aug 2026 10:00:00 +0000</pubDate>
-        <description>Rates remain steady.</description></item>
-        </channel></rss>"""
-    ))
+    session_local = sessionmaker(
+        bind=postgres_engine, autoflush=False, expire_on_commit=False, future=True
+    )
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
+    collector = RSSCollector(
+        parser=lambda _: feedparser.parse(
+            """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+            <rss version=\"2.0\"><channel><title>Example</title><link>https://example.com</link>
+            <item><title>Fed holds rates steady</title><link>https://example.com/articles/fed-rates</link>
+            <guid>fed-rates</guid><pubDate>Mon, 19 Aug 2026 10:00:00 +0000</pubDate>
+            <description>Rates remain steady.</description></item>
+            </channel></rss>"""
+        )
+    )
     service = IngestionService(source_repo, article_repo, collector)
 
     source = _build_source("RSS Postgres Source")

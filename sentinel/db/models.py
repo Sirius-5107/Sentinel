@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
+import uuid
 
 from pydantic import HttpUrl
 from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
@@ -51,7 +51,9 @@ class SourceORM(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default=SourceStatus.ACTIVE.value)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=SourceStatus.ACTIVE.value
+    )
     region: Mapped[str] = mapped_column(String(32), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(32), nullable=False)
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
@@ -63,10 +65,14 @@ class SourceORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    articles: Mapped[list[ArticleORM]] = relationship(back_populates="source", cascade="all, delete")
+    articles: Mapped[list[ArticleORM]] = relationship(
+        back_populates="source",
+        cascade="all, delete",
+    )
 
     @classmethod
     def from_domain(cls, source: Source) -> SourceORM:
+        """Create a SourceORM row from a Source domain model."""
         return cls(
             id=str(source.id),
             name=source.name,
@@ -86,6 +92,7 @@ class SourceORM(Base):
         )
 
     def to_domain(self) -> Source:
+        """Convert the database row back to a Source domain model."""
         return Source(
             id=uuid.UUID(self.id),
             name=self.name,
@@ -123,7 +130,9 @@ class ArticleORM(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default=ArticleStatus.INGESTED.value)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=ArticleStatus.INGESTED.value
+    )
     asset_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
     region: Mapped[str | None] = mapped_column(String(32), nullable=True)
     sector: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -142,6 +151,7 @@ class ArticleORM(Base):
 
     @classmethod
     def from_domain(cls, article: Article) -> ArticleORM:
+        """Create an ArticleORM row from an Article domain model."""
         return cls(
             id=str(article.id),
             source_id=str(article.source_id),
@@ -162,13 +172,16 @@ class ArticleORM(Base):
             importance_confidence=article.importance_confidence,
             content_hash=article.content_hash,
             embedding_id=str(article.embedding_id) if article.embedding_id is not None else None,
-            duplicate_of_id=str(article.duplicate_of_id) if article.duplicate_of_id is not None else None,
+            duplicate_of_id=(
+                str(article.duplicate_of_id) if article.duplicate_of_id is not None else None
+            ),
             error_message=article.error_message,
             created_at=article.created_at,
             updated_at=article.updated_at,
         )
 
     def to_domain(self) -> Article:
+        """Convert the database row back to an Article domain model."""
         return Article(
             id=uuid.UUID(self.id),
             source_id=uuid.UUID(self.source_id),
@@ -189,7 +202,9 @@ class ArticleORM(Base):
             importance_confidence=self.importance_confidence,
             content_hash=self.content_hash,
             embedding_id=uuid.UUID(self.embedding_id) if self.embedding_id is not None else None,
-            duplicate_of_id=uuid.UUID(self.duplicate_of_id) if self.duplicate_of_id is not None else None,
+            duplicate_of_id=(
+                uuid.UUID(self.duplicate_of_id) if self.duplicate_of_id is not None else None
+            ),
             error_message=self.error_message,
             created_at=_required_utc(self.created_at),
             updated_at=_required_utc(self.updated_at),

@@ -6,10 +6,9 @@ This package is intentionally outside sentinel_core. Phase 1 remains frozen.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-import yaml
 from pydantic import BaseModel, Field, HttpUrl, field_validator
+import yaml
 
 from sentinel_core.enums import AssetClass, MarketRegion, SourceStatus, SourceType
 from sentinel_core.models.source import Source
@@ -82,7 +81,6 @@ def load_source_configs(path: str | Path = "configs/sources.yaml") -> list[Sourc
 
     The YAML is intentionally config-only; it is not part of sentinel_core.
     """
-
     config_path = Path(path)
     if not config_path.exists():
         return []
@@ -117,7 +115,6 @@ def load_source_configs(path: str | Path = "configs/sources.yaml") -> list[Sourc
 
 def load_sources(path: str | Path = "configs/sources.yaml") -> list[Source]:
     """Resolve runtime source YAML into immutable sentinel_core Source models."""
-
     resolved: list[Source] = []
     for config in load_source_configs(path):
         category = config.category.lower()

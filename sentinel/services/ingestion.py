@@ -20,11 +20,13 @@ class IngestionService:
         article_repository: ArticleRepository,
         collector: RSSCollector | None = None,
     ) -> None:
+        """Create an ingestion service bound to repositories and a collector."""
         self._source_repository = source_repository
         self._article_repository = article_repository
         self._collector = collector or RSSCollector()
 
     async def ingest_source(self, source: Source) -> list[Article]:
+        """Persist a source's collected articles and return the saved article list."""
         persisted_source = self._source_repository.save_source(source)
         run = PipelineRun(trigger="manual")
         saved_articles: list[Article] = []
@@ -38,6 +40,7 @@ class IngestionService:
         return saved_articles
 
     async def scan(self, source: Source) -> AsyncIterator[Article]:
+        """Yield each persisted article for a source while skipping duplicates."""
         persisted_source = self._source_repository.save_source(source)
         run = PipelineRun(trigger="manual")
         articles = await self._collector.collect(persisted_source, run)

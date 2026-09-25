@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+import hashlib
 from time import mktime, struct_time
-from typing import Any
 
 import feedparser
 from pydantic import HttpUrl
@@ -26,10 +25,11 @@ class RSSCollector(BaseCollector):
     domain objects for the application layer to save to the repository.
     """
 
-    def __init__(self, parser: Any | None = None) -> None:
+    def __init__(self, parser: Callable[..., object] | None = None) -> None:
+        """Create a collector bound to an RSS parser implementation."""
         self._parser = parser or feedparser.parse
 
-    def _coerce_datetime(self, value: Any) -> datetime | None:
+    def _coerce_datetime(self, value: object) -> datetime | None:
         if value is None:
             return None
         if isinstance(value, datetime):
@@ -54,7 +54,6 @@ class RSSCollector(BaseCollector):
         run: PipelineRun,
     ) -> AsyncIterator[Article]:
         """Parse an RSS feed and return an async iterator of Article objects."""
-
         del run
 
         async def _generate() -> AsyncIterator[Article]:
@@ -89,7 +88,9 @@ class RSSCollector(BaseCollector):
                     if published_at is not None:
                         break
                 if published_at is None:
-                    published_text = entry.get("published") or entry.get("updated") or entry.get("created")
+                    published_text = (
+                        entry.get("published") or entry.get("updated") or entry.get("created")
+                    )
                     if isinstance(published_text, str):
                         published_at = self._coerce_datetime(published_text)
 
@@ -103,7 +104,7 @@ class RSSCollector(BaseCollector):
                     fetched_at=datetime.now(tz=UTC),
                     language=source.language,
                     status=ArticleStatus.INGESTED,
-                    content_hash=hashlib.sha256(f"{title}{link}".encode("utf-8")).hexdigest(),
+                    content_hash=hashlib.sha256(f"{title}{link}".encode()).hexdigest(),
                 )
 
         return _generate()
