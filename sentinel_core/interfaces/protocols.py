@@ -14,10 +14,34 @@ PublisherProtocol  — Phase 7 (sentinel/publish/)
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from typing import Protocol, runtime_checkable
 
 from sentinel_core.models import Article, DailyReport, PipelineRun, Source, Task
+
+
+@runtime_checkable
+class LLMProviderProtocol(Protocol):
+    """Minimal protocol for a text-generation provider used by the processing stage."""
+
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 256,
+        temperature: float = 0.0,
+    ) -> str:
+        """Return a model-generated completion for the supplied prompt."""
+        ...  # pragma: no cover
+
+
+@runtime_checkable
+class EmbeddingProviderProtocol(Protocol):
+    """Minimal protocol for a text embedding provider used for deduplication."""
+
+    async def embed(self, text: str) -> Sequence[float]:
+        """Return an embedding vector for the supplied text."""
+        ...  # pragma: no cover
 
 
 @runtime_checkable
