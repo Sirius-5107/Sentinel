@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import hashlib
 import uuid
 
@@ -275,6 +275,36 @@ async def test_daily_brief_is_deterministic_and_tracks_provenance() -> None:
     assert len(brief.sections) == 2
     assert brief.event_article_ids[event_one.id] == (article.id,)
     assert brief.event_article_ids[event_two.id] == (other.id,)
+
+
+def test_daily_report_orm_coverage_date_round_trips_as_date() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+
+    expected_date = date(2026, 9, 15)
+    with session_local() as session:
+        report = DailyReportORM(
+            id=str(uuid.uuid4()),
+            report_type=ReportType.DAILY_BRIEF.value,
+            status=ReportStatus.DRAFT.value,
+            coverage_date=expected_date,
+            title="Daily Brief",
+            executive_summary="Daily brief summary.",
+            article_count=2,
+            event_count=1,
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
+        )
+        session.add(report)
+        session.commit()
+        session.refresh(report)
+
+        assert report.coverage_date == expected_date
+        assert isinstance(report.coverage_date, date)
+        assert not isinstance(report.coverage_date, datetime)
+
+    engine.dispose()
 
 
 def test_market_event_repository_persists_article_provenance_round_trip() -> None:

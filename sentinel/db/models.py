@@ -6,7 +6,17 @@ from datetime import UTC, date, datetime
 import uuid
 
 from pydantic import HttpUrl
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from sentinel_core.enums import (
@@ -315,7 +325,7 @@ class DailyReportORM(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     report_type: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    coverage_date: Mapped[date] = mapped_column(DateTime, nullable=False)
+    coverage_date: Mapped[date] = mapped_column(Date, nullable=False)
     title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     executive_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     pipeline_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
