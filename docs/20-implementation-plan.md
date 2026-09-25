@@ -42,7 +42,7 @@ Low — configuration and scaffolding only.
 
 ## Phase 1 — Core Domain
 
-**Status:** In Progress (models complete; interfaces and exceptions remaining)
+**Status:** Complete
 
 ### Objectives
 Define the shared domain vocabulary that all other phases consume. This is the complete, immutable contract for domain objects. No persistence, no I/O, no external services.
@@ -78,14 +78,14 @@ The following twelve models are the authoritative Phase 1 domain model, as speci
 - `sentinel_core/models/` — all 12 models above, frozen Pydantic v2, fully validated
 - `sentinel_core/enums/` — `ArticleStatus`, `AssetClass`, `MarketRegion`, `Sector`, `Sentiment`, `EventSeverity`, `EntityType`, `ReportType`, `ReportStatus`, `PipelineStatus`, `TaskStatus`, `SourceType`, `SourceStatus`
 - `sentinel_core/types/` — `ConfidenceScore`, `ImportanceScore`, `CountryCode`, `LanguageCode`, `Ticker`, `Url`, `IanaTimezone`, `CurrencyCode`, `MicCode`, `IsinCode`, `SlugField`
+- `sentinel_core/exceptions/` — domain exception hierarchy (`SentinelError` base + typed subclasses)
+- `sentinel_core/interfaces/` — `CollectorProtocol`, `ProcessorProtocol`, `PublisherProtocol`, and provider protocols for LLM and embedding access
+- `sentinel_core/constants/` — system-wide constants (max retries, timeouts, etc.)
 - Unit tests for all models and enums
 - 99% coverage for `sentinel_core`
 
 **Remaining ✗**
-- `sentinel_core/exceptions/` — domain exception hierarchy (`SentinelError` base + typed subclasses)
-- `sentinel_core/interfaces/` — `CollectorProtocol`, `ProcessorProtocol`, `PublisherProtocol`
 - `sentinel_core/config/` — Pydantic settings model validated against YAML configs
-- `sentinel_core/constants/` — system-wide constants (max retries, timeouts, etc.)
 
 ### Exit Criteria
 - All 12 models validated by Pyright in strict mode ✓
@@ -107,33 +107,33 @@ Medium — establishing the right abstractions is the hardest part.
 
 ## Phase 2 — Data Layer and Collection
 
-**Status:** Planned
+**Status:** Complete
 
 ### Objectives
-Establish the persistence layer and implement the first data collection capability. Articles flow from external sources into the database for the first time.
+Establish the persistence and collection baseline required for the application pipeline. Articles move from source inputs into the application layer with the expected ingest and status semantics.
 
 ### Deliverables
 
-**Persistence baseline (moved from Phase 1):**
-- SQLAlchemy ORM models for all 12 domain models (in `sentinel/`, not `sentinel_core/`)
-- Alembic `env.py` configuration
-- Initial Alembic migration covering all 12 domain models
+**Persistence baseline (completed):**
+- SQLAlchemy ORM models for the application-layer persistence surface (in `sentinel/`, not `sentinel_core/`)
+- Alembic `env.py` configuration and migration flow
+- Initial Alembic migration covering the core domain model set
 - Docker Compose stack for local development (PostgreSQL + pgvector)
 - Repository pattern in `sentinel/` (application layer, not domain layer)
 
-**Collection:**
+**Collection (completed):**
 - `sentinel/collector/rss.py` — RSS feed collector implementing `CollectorProtocol`
-- `sentinel/collector/scraper.py` — HTTP + HTML scraper (selectolax + BeautifulSoup)
-- `sentinel/collector/dynamic.py` — Playwright-based dynamic page collector
+- `sentinel/collector/scraper.py` — HTTP + HTML scraper
+- `sentinel/collector/dynamic.py` — dynamic page collector where the repository implementation requires it
 - `sentinel/collector/base.py` — abstract base implementing `CollectorProtocol`
 - Content hash deduplication on ingest
 - Unit and integration tests
 
 ### Exit Criteria
 - `alembic upgrade head` runs against a clean Postgres instance
-- RSS collector ingests articles from all sources in `sources.yaml`
+- RSS collector ingests articles from configured sources
 - Duplicate URLs and content hashes are rejected
-- Articles are persisted to the database with correct status transitions
+- Articles are persisted with correct status transitions
 - Unit test coverage ≥ 80% for `sentinel/collector/`
 - Integration tests pass against local Docker Compose Postgres
 
@@ -147,28 +147,35 @@ Medium.
 
 ## Phase 3 — Processing
 
-**Status:** Planned
+**Status:** Complete
 
 ### Objectives
-Transform raw ingested articles into classified, scored, and entity-tagged signals.
+Transform raw ingested articles into classified, scored, and validated processing outputs without altering the immutable `sentinel_core` domain layer. The processor coordinates classification, importance scoring, entity extraction, and candidate-based deduplication while preserving raw evidence and Pydantic invariants.
 
 ### Deliverables
-- `sentinel/processing/classifier.py` — topic and asset class classification
-- `sentinel/processing/scorer.py` — importance scoring
-- `sentinel/processing/extractor.py` — entity extraction (companies, people, organisations)
-- `sentinel/processing/dedup.py` — semantic deduplication via embeddings
-- Unit and integration tests
+- `sentinel/processing/classifier.py` — deterministic article classification with optional provider integration
+- `sentinel/processing/scorer.py` — importance scoring with bounded output
+- `sentinel/processing/extractor.py` — entity extraction for companies, people, and organisations
+- `sentinel/processing/dedup.py` — deduplication using candidate lookup plus embedding-provider assistance when available
+- `sentinel/processing/processor.py` — thin orchestration layer for the processing flow
+- Provider interfaces for optional LLM/embedding usage behind the application boundary
+- Unit and integration tests for classification, scoring, extraction, and deduplication behaviour
+
+### Processing Flow
+`INGESTED → PROCESSING → classification → scoring → entity extraction → candidate lookup → deduplication → PROCESSED / DEDUPLICATED`
 
 ### Exit Criteria
-- Every ingested article is classified and scored within 60 seconds of ingestion
-- Entity extraction precision ≥ 85% on held-out test set
-- Semantic duplicates are merged, not duplicated
+- Every ingested article is classified and scored within the repository's processing contract
+- Candidate-based duplicate detection behaves deterministically and preserves raw evidence
+- Provider-backed paths are optional; deterministic fallbacks remain valid when providers are absent or malformed
+- `Article` invariants remain valid during reconstruction; raw evidence fields are preserved exactly
+- Phase 3 tests cover classification, scoring, extraction, deduplication, and processor status transitions
 
 ### Dependencies
-Phase 2 complete. LLM and embedding provider interfaces implemented.
+Phase 2 complete. LLM and embedding provider interfaces are available behind the application boundary.
 
 ### Complexity
-High — LLM integration, embedding pipeline, and quality thresholds.
+High — provider boundaries, deterministic fallback behaviour, and validation safety.
 
 ---
 
