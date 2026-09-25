@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Active — Phase 3 complete; Phase 4 is next
+**Status:** Active — Phase 3 complete; Phase 4 architecture resolved; Phase 4 implementation is next
 **Version:** 1.0
 
 ---
@@ -28,6 +28,7 @@
                     │  (Phase 4)  │
                     └──────┬──────┘
                            │ MarketEvents + DailyReport
+                           │ (Signal = MarketEvent)
                     ┌──────▼──────┐
                     │  Knowledge  │  sentinel/knowledge
                     │  (Phase 5)  │
@@ -162,3 +163,83 @@ Infrastructure is not implemented until Phase 10.
 - HTTP requests always use explicit timeouts.
 - The API enforces authentication on all endpoints.
 - Logs never contain secrets or credentials.
+
+
+---
+
+## 9. Phase 4 Intelligence Architecture
+
+Phase 4 uses an event-centric intelligence model. `MarketEvent` is the canonical structured intelligence/signal object; the platform does not introduce a separate `Signal` domain model.
+
+### 9.1 Evidence-to-Intelligence Flow
+
+```text
+Processed Articles
+        │
+        ▼
+┌──────────────────────┐
+│ Event Synthesis      │
+│ group related        │
+│ evidence and identify│
+│ discrete developments│
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ MarketEvent          │
+│ canonical intelligence│
+│ object               │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Analysis             │
+│ "why it matters"     │
+│ implications/context │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ ReportSection        │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ DailyReport          │
+└──────────────────────┘
+```
+
+### 9.2 Provenance
+
+A `MarketEvent` is not valid for persistence without at least one source `Article`. The relationship is many-to-many at the application/database layer:
+
+- one event may be supported by multiple Articles;
+- one Article may support multiple independently justified events;
+- report content must remain traceable through MarketEvents to source Articles.
+
+The Pydantic `MarketEvent` model does not carry article IDs because provenance is represented by application/database relationships.
+
+### 9.3 LLM Boundary
+
+LLMs are used as bounded proposal/generation components. Their output must be parsed into structured data and validated against domain contracts before persistence. Provider failures, malformed output, unsupported claims, or missing provenance must not produce persisted intelligence objects.
+
+### 9.4 Responsibility Boundaries
+
+| Component | Responsibility |
+|---|---|
+| `synthesiser.py` | Evidence grouping and `MarketEvent` synthesis |
+| `analyst.py` | Implications and "why it matters" reasoning from supported context |
+| `daily_brief.py` | Deterministic report assembly into `ReportSection` and `DailyReport` |
+| Phase 5 Knowledge | Historical entity/theme/event accumulation |
+| Phase 7 Publisher | Notion and other external publication |
+
+### 9.5 Explicit Non-Goals
+
+Phase 4 does not introduce:
+
+- a `Signal` model;
+- a generic `Insight` model;
+- a second intermediate intelligence layer between Article and MarketEvent;
+- autonomous trading or portfolio execution;
+- Notion publishing implementation;
+- Phase 5 knowledge-base persistence logic.
