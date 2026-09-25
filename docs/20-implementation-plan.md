@@ -181,7 +181,7 @@ High — provider boundaries, deterministic fallback behaviour, and validation s
 
 ## Phase 4 — Intelligence
 
-**Status:** Planned
+**Status:** Complete
 
 > **Architecture decision resolved:** `Signal` is not a separate domain model. `MarketEvent` is the canonical intelligence/signal object. Phase 4 therefore operates directly on `Processed Article → MarketEvent → ReportSection → DailyReport`. See `docs/decisions/ADR-0002-market-event-as-signal.md`.
 
@@ -231,26 +231,53 @@ High — prompt engineering and output quality validation.
 
 ## Phase 5 — Knowledge Base
 
-**Status:** Planned
+**Status:** Architecture resolved
 
-> **Country model decision may arise in this phase.** If country-level knowledge base entries (India macro, US equities landscape) are required, a `Country` domain model will be introduced here. See `docs/06-phase-1-audit.md` §15, Q2.
+> **Architecture decision:** Phase 5 treats `MarketEvent` as the canonical historical intelligence object. It does not introduce a second event/signal/insight model. Knowledge updates consume validated Phase 4 outputs independently of DailyReport assembly. See `docs/decisions/ADR-0003-knowledge-base-architecture.md`.
 
 ### Objectives
-Build and maintain a structured, searchable knowledge base of entities, themes, and historical events.
+Build a persistent, searchable knowledge base that accumulates typed entities, themes, MarketEvents, and their evidence relationships over time.
+
+### Canonical Flow
+`Processed Articles → Phase 4 Intelligence → MarketEvents`
+
+Then, independently:
+
+`MarketEvents + processed entity references → Knowledge Ingestion → PostgreSQL Knowledge Store → FTS / pgvector Retrieval`
+
+Daily report assembly is not the persistence trigger for knowledge updates.
 
 ### Deliverables
-- `sentinel/knowledge/company.py` — company profiles
-- `sentinel/knowledge/theme.py` — investment theme tracking
-- `sentinel/knowledge/person.py` — key person profiles
-- `sentinel/knowledge/country.py` — country/region profiles (if `Country` model is introduced)
-- `sentinel/knowledge/event.py` — event history
-- Vector search via pgvector
-- Full-text search via PostgreSQL
+- `sentinel/knowledge/` application layer for knowledge ingestion, resolution, persistence, and retrieval
+- Typed knowledge handling for existing `Company`, `Person`, `Organization`, and `Theme` models
+- MarketEvent history and entity/theme relationship persistence
+- Entity resolution that maps extracted mentions to existing typed records without introducing a generic `Entity` model
+- Semantic retrieval using pgvector
+- PostgreSQL full-text retrieval
+- Source provenance preserved through `MarketEvent → Article` relationships and entity/theme evidence links
+- Deterministic/idempotent knowledge updates for repeated pipeline inputs
+- Unit and integration tests
+
+### Architecture Rules
+- `sentinel_core` remains dependency-free from `sentinel/` application packages.
+- `MarketEvent` remains the canonical event/intelligence object.
+- Do not introduce `Signal`, `Event`, `Insight`, or another generic intelligence model.
+- Do not introduce a generic `Entity` model; resolution remains typed by Company/Person/Organization/Theme.
+- Knowledge ingestion consumes validated Phase 4 outputs and is independently retryable/rebuildable.
+- DailyReport generation must not be the hidden side effect that persists the knowledge base.
+- Articles remain immutable evidence.
+- Country remains deferred. A `Country` domain model requires a separate architecture decision based on a concrete use case.
+- Vector search initially targets `MarketEvent` as the primary semantic intelligence unit; article evidence is reached through provenance. Additional embedding targets require a documented use case.
+- Search infrastructure remains behind the knowledge/search application boundary; downstream phases should not depend directly on PostgreSQL or pgvector APIs.
 
 ### Exit Criteria
-- Entity pages updated incrementally with each pipeline run
-- Search returns results in < 500ms at target data volume
-- All entities link to source evidence
+- Validated MarketEvents can be ingested into the knowledge base with their entity/theme relationships.
+- Re-running the same knowledge input does not create duplicate entity or event records.
+- Every persisted MarketEvent remains traceable to at least one supporting Article.
+- Typed entity records can be resolved and retrieved from accumulated evidence.
+- Full-text and semantic search return deterministic, source-traceable results at the target data volume.
+- Knowledge ingestion can be retried independently from DailyReport generation.
+- Tests cover entity resolution, relationship persistence, provenance, idempotency, and search behaviour.
 
 ### Dependencies
 Phase 4 complete. pgvector extension installed.
