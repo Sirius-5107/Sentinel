@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Active — Phase 3 complete; Phase 4 architecture resolved; Phase 4 implementation is next
+**Status:** Active — Phase 4 complete; Phase 5 architecture resolved
 **Version:** 1.0
 
 ---
@@ -243,3 +243,113 @@ Phase 4 does not introduce:
 - autonomous trading or portfolio execution;
 - Notion publishing implementation;
 - Phase 5 knowledge-base persistence logic.
+
+
+---
+
+## 10. Phase 5 Knowledge Architecture
+
+Phase 5 turns validated Phase 4 intelligence into persistent, searchable historical knowledge. It does not redefine the intelligence model.
+
+### 10.1 Knowledge Flow
+
+```text
+Processed Articles
+        │
+        ▼
+Phase 4 Intelligence
+        │
+        ▼
+   MarketEvents
+        │
+        ├───────────────► DailyReport
+        │
+        ▼
+Knowledge Ingestion
+        │
+   ┌────┼───────────────┐
+   ▼    ▼               ▼
+Company Person   Organization / Theme
+   │    │               │
+   └────┴───────────────┘
+             │
+             ▼
+      PostgreSQL Knowledge Store
+             │
+        ┌────┴────┐
+        ▼         ▼
+       FTS     pgvector
+        │         │
+        └────┬────┘
+             ▼
+          Retrieval
+```
+
+Knowledge ingestion is an independent consumer of validated Phase 4 outputs. DailyReport assembly is not a hidden trigger for knowledge persistence. This permits independent retries, deterministic rebuilds, and testing.
+
+### 10.2 Canonical Knowledge Objects
+
+Phase 5 uses the existing typed domain models:
+
+- `Company`
+- `Person`
+- `Organization`
+- `Theme`
+- `MarketEvent`
+- `Article` as immutable evidence
+
+No generic `Entity`, `Event`, `Signal`, or `Insight` model is introduced.
+
+### 10.3 Entity Resolution
+
+Entity extraction from Phase 3 identifies mentions; Phase 5 resolves those mentions against persistent typed records.
+
+Resolution is type-specific:
+
+- Company: ticker/ISIN where available, then normalized identity matching.
+- Person: normalized name plus contextual evidence.
+- Organization: normalized name/abbreviation plus contextual evidence.
+- Theme: existing theme identity/slug; creation policy must be explicit rather than arbitrary LLM invention.
+
+A resolver must either map a mention to an existing record or create a validated typed record according to deterministic policy. Resolution must not silently merge distinct records.
+
+### 10.4 Event History and Provenance
+
+`MarketEvent` remains the canonical historical event object.
+
+Every persisted event must have at least one supporting Article. Entity/theme relationships are additional knowledge links; they do not replace article provenance.
+
+The retrieval path for event intelligence is:
+
+`query → MarketEvent → supporting Articles`.
+
+This keeps semantic retrieval focused on validated intelligence while preserving raw evidence for inspection.
+
+### 10.5 Search Boundary
+
+The knowledge package owns search orchestration. PostgreSQL/pgvector implementation details remain behind that boundary.
+
+Initial retrieval surfaces:
+
+| Search mode | Primary target | Purpose |
+|---|---|---|
+| Full-text | MarketEvents + typed entity/theme text | Exact terms, names, phrases |
+| Semantic | MarketEvents | Conceptual similarity over validated intelligence |
+| Evidence traversal | Articles through provenance | Inspect supporting source material |
+
+Search results must preserve enough identity/provenance to trace returned intelligence back to source evidence.
+
+### 10.6 Country Decision
+
+`CountryCode` remains sufficient for Phase 5 unless a concrete country-level knowledge use case requires a persistent country entity. Introducing `Country` requires a separate ADR and domain-model change.
+
+### 10.7 Phase 5 Non-Goals
+
+- trading or portfolio execution;
+- research-document generation (Phase 6);
+- Notion publishing (Phase 7);
+- REST API (Phase 8);
+- dashboard work (Phase 9);
+- autonomous web research;
+- generic entity/event abstractions;
+- automatic country-model creation without an explicit use case.
