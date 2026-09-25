@@ -6,9 +6,19 @@ from datetime import UTC, datetime
 import hashlib
 import uuid
 
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from sentinel.db.models import Base, DailyReportORM, MarketEventORM, ReportSectionORM
+from sentinel.db.repository import (
+    ArticleRepository,
+    DailyBriefRepository,
+    MarketEventRepository,
+    ReportSectionRepository,
+    SourceRepository,
+)
 from sentinel.intelligence.analyst import Analyst
 from sentinel.intelligence.daily_brief import DailyBriefAssembler
 from sentinel.intelligence.synthesiser import EventSynthesiser, MarketEventCandidate
@@ -17,11 +27,14 @@ from sentinel_core.enums import (
     AssetClass,
     EventSeverity,
     MarketRegion,
+    ReportStatus,
     ReportType,
     Sector,
     Sentiment,
+    SourceStatus,
+    SourceType,
 )
-from sentinel_core.models import Article, MarketEvent
+from sentinel_core.models import Article, DailyReport, MarketEvent, ReportSection, Source
 from sentinel_core.types import Url
 
 
@@ -262,3 +275,163 @@ async def test_daily_brief_is_deterministic_and_tracks_provenance() -> None:
     assert len(brief.sections) == 2
     assert brief.event_article_ids[event_one.id] == (article.id,)
     assert brief.event_article_ids[event_two.id] == (other.id,)
+
+
+def test_market_event_repository_persists_article_provenance_round_trip() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    source_repo = SourceRepository(lambda: session_local())
+    article_repo = ArticleRepository(lambda: session_local())
+    market_repo = MarketEventRepository(lambda: session_local())
+    section_repo = ReportSectionRepository(lambda: session_local())
+    brief_repo = DailyBriefRepository(lambda: session_local())
+
+    source = Source(
+        name="Fed Watch",
+        url=HttpUrl("https://example.com/fed-watch"),
+        source_type=SourceType.RSS,
+        status=SourceStatus.ACTIVE,
+        region=MarketRegion.US,
+        asset_class=AssetClass.MACRO,
+        language="en",
+        weight=1.0,
+        fetch_interval_minutes=60,
+    )
+    saved_source = source_repo.save_source(source)
+
+    article_one = Article(
+        source_id=saved_source.id,
+        title="Fed holds rates steady",
+        url=HttpUrl("https://example.com/fed-rates"),
+        content="The central bank kept rates steady as inflation remained elevated.",
+        content_hash="a" * 64,
+        fetched_at=datetime.now(tz=UTC),
+    )
+    article_two = Article(
+        source_id=saved_source.id,
+        title="Treasury yields climb after rate signal",
+        url=HttpUrl("https://example.com/treasury-yields"),
+        content="Bond yields rose after policymakers signaled a higher-for-longer path.",
+        content_hash="b" * 64,
+        fetched_at=datetime.now(tz=UTC),
+    )
+    saved_article_one = article_repo.save_article(article_one)
+    saved_article_two = article_repo.save_article(article_two)
+
+    event = MarketEvent(
+        title="Fed policy path remains restrictive",
+        summary=(
+            "The Federal Reserve signaled that inflation remains elevated and rates are "
+            "likely to stay higher for longer, a development that matters for growth "
+            "expectations, bond yields, and the overall macro backdrop across US "
+            "markets."
+        ),
+        asset_class=AssetClass.MACRO,
+        region=MarketRegion.US,
+        sector=Sector.FINANCIALS,
+        severity=EventSeverity.HIGH,
+        sentiment=Sentiment.NEUTRAL,
+        sentiment_confidence=0.8,
+        importance_score=8.1,
+        importance_confidence=0.85,
+        occurred_at=datetime.now(tz=UTC),
+    )
+    saved_event = market_repo.save_market_event(
+        event,
+        source_article_ids=[saved_article_one.id, saved_article_two.id],
+    )
+
+    with session_local() as session:
+        event_row = session.get(MarketEventORM, str(saved_event.id))
+        assert event_row is not None
+        event_article_ids = {uuid.UUID(article_row.id) for article_row in event_row.articles}
+        assert event_article_ids == {saved_article_one.id, saved_article_two.id}
+
+    report = DailyReport(
+        coverage_date=datetime.now(tz=UTC).date(),
+        report_type=ReportType.DAILY_BRIEF,
+        status=ReportStatus.DRAFT,
+        title="Daily Brief",
+        executive_summary="A brief summary for the day.",
+        article_count=2,
+        event_count=1,
+    )
+    section = ReportSection(
+        report_id=report.id,
+        title="Macro",
+        order=0,
+        content="The most important development is the restrictive Fed policy path.",
+        asset_class=AssetClass.MACRO,
+        region=MarketRegion.US,
+        event_count=1,
+    )
+    saved_section = section_repo.save_report_section(
+        section,
+        market_event_ids=[saved_event.id],
+    )
+
+    with session_local() as session:
+        section_row = session.get(ReportSectionORM, str(saved_section.id))
+        assert section_row is not None
+        section_event_ids = {uuid.UUID(event_row.id) for event_row in section_row.market_events}
+        assert section_event_ids == {saved_event.id}
+
+    brief = DailyBriefAssembler.assemble(
+        [saved_event],
+        coverage_date=report.coverage_date,
+        event_provenance={saved_event.id: (saved_article_one.id, saved_article_two.id)},
+    )
+    persisted_report = brief_repo.save_daily_report(
+        brief.report,
+        sections=brief.sections,
+        section_event_ids=brief.section_event_ids,
+        event_article_ids=brief.event_article_ids,
+    )
+
+    with session_local() as session:
+        daily_row = session.get(DailyReportORM, str(persisted_report.id))
+        assert daily_row is not None
+        assert len(daily_row.sections) == 1
+        reloaded_section = daily_row.sections[0]
+        reloaded_event_ids = {
+            uuid.UUID(event_row.id) for event_row in reloaded_section.market_events
+        }
+        assert reloaded_event_ids == {saved_event.id}
+        reloaded_event = reloaded_section.market_events[0]
+        reloaded_article_ids = {
+            uuid.UUID(article_row.id) for article_row in reloaded_event.articles
+        }
+        assert reloaded_article_ids == {saved_article_one.id, saved_article_two.id}
+
+    engine.dispose()
+
+
+def test_market_event_repository_rejects_zero_supporting_articles() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    market_repo = MarketEventRepository(lambda: session_local())
+
+    event = MarketEvent(
+        title="Policy path remains restrictive",
+        summary=(
+            "The Federal Reserve signaled that inflation remains elevated and rates are "
+            "likely to stay higher for longer, which matters to expectations for growth "
+            "and bond yields across US markets."
+        ),
+        asset_class=AssetClass.MACRO,
+        region=MarketRegion.US,
+        sector=Sector.FINANCIALS,
+        severity=EventSeverity.HIGH,
+        sentiment=Sentiment.NEUTRAL,
+        sentiment_confidence=0.8,
+        importance_score=8.1,
+        importance_confidence=0.85,
+        occurred_at=datetime.now(tz=UTC),
+    )
+
+    with pytest.raises(ValueError, match="at least one supporting Article"):
+        market_repo.save_market_event(event, source_article_ids=[])
+
+    engine.dispose()
