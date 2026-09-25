@@ -6,6 +6,7 @@ from collections.abc import Sequence
 import math
 
 from sentinel_core.enums import ArticleStatus
+from sentinel_core.exceptions.base import ProcessingError
 from sentinel_core.interfaces.protocols import EmbeddingProviderProtocol
 from sentinel_core.models import Article
 
@@ -40,12 +41,17 @@ class SemanticDeduplicator:
                     candidate_embedding = await effective_provider.embed(
                         self._normalise_text(candidate)
                     )
+                except Exception as exc:
+                    raise ProcessingError(
+                        "Embedding provider failed while evaluating article duplicates."
+                    ) from exc
+
+                if self._is_valid_embedding(article_embedding) and self._is_valid_embedding(
+                    candidate_embedding
+                ):
                     similarity = self._cosine_similarity(article_embedding, candidate_embedding)
                     if similarity >= 0.88:
                         return candidate
-                except Exception:
-                    # Fall back to deterministic keyword-based overlap below.
-                    _ = None
 
             if self._hash_signature(article) == self._hash_signature(candidate):
                 return candidate
@@ -54,6 +60,15 @@ class SemanticDeduplicator:
                 return candidate
 
         return None
+
+    @staticmethod
+    def _is_valid_embedding(value: object) -> bool:
+        """Check whether a provider embedding looks like a numeric vector."""
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+            return False
+        if not value:
+            return False
+        return all(isinstance(item, (int, float)) for item in value)
 
     @staticmethod
     def _normalise_text(article: Article) -> str:

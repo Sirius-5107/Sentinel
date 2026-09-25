@@ -54,6 +54,7 @@ class ArticleScorer:
 
         if "market region" in lower:
             score += 0.2
+        score = max(0.0, min(10.0, score))
 
         return ScoreResult(
             importance_score=float(round(score, 2)),
