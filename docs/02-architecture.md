@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Active — Phase 1 complete
+**Status:** Active — Phase 3 complete; Phase 4 is next
 **Version:** 1.0
 
 ---
@@ -22,7 +22,7 @@
                     │  Processor  │  sentinel/processing
                     │  (Phase 3)  │
                     └──────┬──────┘
-                           │ Articles (PROCESSED) + Entities
+                           │ Articles (PROCESSED / DEDUPLICATED)
                     ┌──────▼──────┐
                     │ Intelligence│  sentinel/intelligence
                     │  (Phase 4)  │
@@ -78,6 +78,8 @@ PostgreSQL serves as the single source of truth for all persistent data.
 | Full-text search | PostgreSQL `tsvector` / `GIN` index |
 | Migrations | Alembic |
 | ORM | SQLAlchemy 2 (async-capable) |
+
+The Phase 3 processing layer operates on `Article` evidence without introducing new persistence or domain models. Provider-backed embedding paths are optional and remain behind application-layer interfaces.
 
 ### Schema Principles
 

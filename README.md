@@ -34,14 +34,16 @@ Collection → Processing → Intelligence → Knowledge → Research → Publis
 
 | Stage | Package | Responsibility |
 |---|---|---|
-| Collection | `sentinel/collector` | Ingest articles from RSS, web, and dynamic sources |
-| Processing | `sentinel/processing` | Classify, score, deduplicate, and extract entities |
+| Collection | `sentinel/collector` | Ingest articles from RSS and static web sources |
+| Processing | `sentinel/processing` | Classify articles, score importance, extract entity references, and perform deterministic semantic deduplication |
 | Intelligence | `sentinel/intelligence` | Synthesise signals into insights and daily briefs |
 | Knowledge | `sentinel/knowledge` | Maintain the entity and event knowledge base |
 | Research | `sentinel/research` | Generate long-form research documents |
 | Publishing | `sentinel/publish` | Distribute to Notion and other channels |
 | API | `sentinel/api` | FastAPI REST interface |
 | CLI | `sentinel/cli` | Operational command-line interface |
+
+The implemented Processing stage includes classification, importance scoring, entity extraction, and semantic/deterministic deduplication. Optional LLM and embedding provider interfaces remain behind the application-layer boundaries defined in `sentinel_core/interfaces/`.
 
 Shared domain primitives (models, interfaces, enums, exceptions) live in `sentinel_core` and are consumed by all stages.
 
@@ -185,10 +187,10 @@ Key documents:
 
 | Phase | Focus | Status |
 |---|---|---|
-| 0 | Engineering foundation | In progress |
-| 1 | Core domain models | Planned |
-| 2 | Data collection | Planned |
-| 3 | Processing pipeline | Planned |
+| 0 | Engineering foundation | Complete |
+| 1 | Core domain models | Complete |
+| 2 | Data layer and collection | Complete |
+| 3 | Processing pipeline | Complete |
 | 4 | Intelligence synthesis | Planned |
 | 5 | Knowledge base | Planned |
 | 6 | Research engine | Planned |
@@ -204,7 +206,7 @@ See [Implementation Plan](docs/20-implementation-plan.md) for full details.
 ## Contributing
 
 1. Read the [Engineering Standards](docs/10-engineering-standards.md) before writing any code.
-2. Branch from `develop` using the naming convention in the standards.
+2. Branch from `main` using the naming convention in the standards.
 3. Ensure all CI checks pass before opening a PR.
 4. Use the [Code Review Checklist](docs/11-code-review-checklist.md) when reviewing.
 5. Record architectural decisions as ADRs in `docs/decisions/`.

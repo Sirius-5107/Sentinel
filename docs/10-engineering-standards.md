@@ -196,9 +196,9 @@ Commit messages must be in the imperative mood. "Add feature" not "Added feature
 | Branch | Purpose |
 |---|---|
 | `main` | Production-ready code. Protected. Requires PR + review. |
-| `develop` | Integration branch. Requires PR. |
-| `feat/<name>` | Feature branches. Branch from `develop`. |
-| `fix/<name>` | Bug fix branches. Branch from `develop` or `main`. |
+| `main` | Default integration branch. Requires PR. |
+| `feat/<name>` | Feature branches. Branch from `main`. |
+| `fix/<name>` | Bug fix branches. Branch from `main`. |
 | `chore/<name>` | Non-functional changes. |
 | `docs/<name>` | Documentation-only changes. |
 

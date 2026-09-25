@@ -170,6 +170,6 @@ Loguru is the only logging library. Every pipeline stage logs structured events 
 
 See `docs/20-implementation-plan.md` for the phased implementation plan.
 
-**Phase 1 (current):** Domain contract layer complete. All twelve domain models, enumerations, and value objects implemented and tested.
+**Phase 3 (completed):** Processing layer complete. Classification, importance scoring, entity extraction, and deterministic candidate-based deduplication are implemented with optional provider interfaces.
 
-**Phase 2 (next):** Data collection layer — RSS, scraping, and dynamic collectors.
+**Phase 4 (next):** Intelligence layer — synthesise processed article inputs into market events and daily brief content, while resolving the deferred `Signal` concept before final design.
