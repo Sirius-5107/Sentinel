@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sentinel_core.enums import AssetClass, MarketRegion, Sector, Sentiment
+from sentinel_core.exceptions.base import ProcessingError
 from sentinel_core.interfaces.protocols import LLMProviderProtocol
 from sentinel_core.models import Article
 from sentinel_core.types import ConfidenceScore
@@ -46,17 +47,16 @@ class ArticleClassifier:
                 "sentiment. Keep values to the Sentinel enum vocabulary.\n\n"
                 f"{text[:4000]}"
             )
-            fallback_to_deterministic = False
             try:
                 raw = await effective_provider.complete(prompt, max_tokens=256, temperature=0.0)
-                parsed = self._parse_provider_result(raw)
-                if parsed is not None:
-                    return parsed
-            except Exception:
-                fallback_to_deterministic = True
-            if fallback_to_deterministic:
-                # Fall through to the deterministic rules below when the provider fails.
-                _ = None
+            except Exception as exc:
+                raise ProcessingError(
+                    "Classification provider failed while classifying article."
+                ) from exc
+
+            parsed = self._parse_provider_result(raw)
+            if parsed is not None:
+                return parsed
 
         asset_class = self._classify_asset_class(text)
         region = self._classify_region(text)
