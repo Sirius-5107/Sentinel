@@ -34,7 +34,13 @@ from sentinel_core.enums import (
     SourceStatus,
     SourceType,
 )
-from sentinel_core.models import Article, DailyReport, MarketEvent, ReportSection, Source
+from sentinel_core.models import (
+    Article,
+    DailyReport,
+    MarketEvent,
+    ReportSection,
+    Source,
+)
 from sentinel_core.types import Url
 
 

@@ -11,16 +11,24 @@ from sqlalchemy.orm import Session
 
 from sentinel.db.models import (
     ArticleORM,
+    CompanyORM,
     DailyReportORM,
     MarketEventORM,
+    OrganizationORM,
+    PersonORM,
     ReportSectionORM,
     SourceORM,
+    ThemeORM,
 )
 from sentinel_core.models.article import Article
+from sentinel_core.models.company import Company
 from sentinel_core.models.daily_report import DailyReport
 from sentinel_core.models.market_event import MarketEvent
+from sentinel_core.models.organization import Organization
+from sentinel_core.models.person import Person
 from sentinel_core.models.report_section import ReportSection
 from sentinel_core.models.source import Source
+from sentinel_core.models.theme import Theme
 
 
 class DuplicateArticleError(ValueError):
@@ -109,6 +117,106 @@ class ArticleRepository:
             return row.to_domain() if row is not None else None
 
 
+class CompanyRepository:
+    """Persist Company records with deterministic exact-name identity."""
+
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using the configured SQLAlchemy session factory."""
+        self._session_factory = session_factory
+
+    def save_company(self, company: Company) -> Company:
+        """Save a company or return the existing record for the same name."""
+        with self._session_factory() as session:
+            existing = session.scalar(select(CompanyORM).where(CompanyORM.name == company.name))
+            if existing is not None:
+                return existing.to_domain()
+            orm = CompanyORM.from_domain(company)
+            session.add(orm)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError(f"Company already exists: {company.name}") from exc
+            session.refresh(orm)
+            return orm.to_domain()
+
+
+class PersonRepository:
+    """Persist Person records with deterministic exact-name identity."""
+
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using the configured SQLAlchemy session factory."""
+        self._session_factory = session_factory
+
+    def save_person(self, person: Person) -> Person:
+        """Save a person or return the existing record for the same full name."""
+        with self._session_factory() as session:
+            existing = session.scalar(
+                select(PersonORM).where(PersonORM.full_name == person.full_name)
+            )
+            if existing is not None:
+                return existing.to_domain()
+            orm = PersonORM.from_domain(person)
+            session.add(orm)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError(f"Person already exists: {person.full_name}") from exc
+            session.refresh(orm)
+            return orm.to_domain()
+
+
+class OrganizationRepository:
+    """Persist Organization records with deterministic exact-name identity."""
+
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using the configured SQLAlchemy session factory."""
+        self._session_factory = session_factory
+
+    def save_organization(self, organization: Organization) -> Organization:
+        """Save an organization or return the existing record for the same name."""
+        with self._session_factory() as session:
+            existing = session.scalar(
+                select(OrganizationORM).where(OrganizationORM.name == organization.name)
+            )
+            if existing is not None:
+                return existing.to_domain()
+            orm = OrganizationORM.from_domain(organization)
+            session.add(orm)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError(f"Organization already exists: {organization.name}") from exc
+            session.refresh(orm)
+            return orm.to_domain()
+
+
+class ThemeRepository:
+    """Persist Theme records with deterministic exact-name identity."""
+
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using the configured SQLAlchemy session factory."""
+        self._session_factory = session_factory
+
+    def save_theme(self, theme: Theme) -> Theme:
+        """Save a theme or return the existing record for the same name."""
+        with self._session_factory() as session:
+            existing = session.scalar(select(ThemeORM).where(ThemeORM.name == theme.name))
+            if existing is not None:
+                return existing.to_domain()
+            orm = ThemeORM.from_domain(theme)
+            session.add(orm)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError(f"Theme already exists: {theme.name}") from exc
+            session.refresh(orm)
+            return orm.to_domain()
+
+
 class MarketEventRepository:
     """Persist a validated MarketEvent and its supporting Article provenance."""
 
@@ -165,6 +273,147 @@ class MarketEventRepository:
             session.commit()
             session.refresh(event_orm)
             return event_orm.to_domain()
+
+
+class KnowledgeRepository:
+    """Persist typed knowledge relationships around MarketEvents."""
+
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        """Create a repository using the configured SQLAlchemy session factory."""
+        self._session_factory = session_factory
+
+    @staticmethod
+    def _normalise_ids(values: Sequence[uuid.UUID] | None) -> list[uuid.UUID]:
+        if values is None:
+            return []
+        return list(dict.fromkeys(uuid.UUID(str(item)) for item in values))
+
+    def _load_entity_rows(
+        self,
+        session: Session,
+        model: type[CompanyORM] | type[PersonORM] | type[OrganizationORM] | type[ThemeORM],
+        ids: Sequence[uuid.UUID],
+        *,
+        label: str,
+    ) -> list[CompanyORM] | list[PersonORM] | list[OrganizationORM] | list[ThemeORM]:
+        """Fetch entity rows, rejecting missing references deterministically."""
+        if not ids:
+            return []
+        result = session.scalars(
+            select(model).where(model.id.in_([str(item) for item in ids]))
+        ).all()
+        if len(result) != len(ids):
+            found = {uuid.UUID(row.id) for row in result}
+            missing = [str(item) for item in ids if item not in found]
+            raise ValueError(f"{label} IDs not present in the database: {', '.join(missing)}")
+        return result
+
+    def save_market_event_knowledge(
+        self,
+        *,
+        market_event_id: uuid.UUID,
+        company_ids: Sequence[uuid.UUID] | None = None,
+        person_ids: Sequence[uuid.UUID] | None = None,
+        organization_ids: Sequence[uuid.UUID] | None = None,
+        theme_ids: Sequence[uuid.UUID] | None = None,
+    ) -> MarketEvent:
+        """Persist typed-knowledge relationships for an existing MarketEvent."""
+        with self._session_factory() as session:
+            event_orm = session.get(MarketEventORM, str(market_event_id))
+            if event_orm is None:
+                raise ValueError(f"MarketEvent {market_event_id} does not exist in the database.")
+
+            event_orm.companies = self._load_entity_rows(
+                session,
+                CompanyORM,
+                self._normalise_ids(company_ids),
+                label="Company",
+            )
+            event_orm.people = self._load_entity_rows(
+                session,
+                PersonORM,
+                self._normalise_ids(person_ids),
+                label="Person",
+            )
+            event_orm.organizations = self._load_entity_rows(
+                session,
+                OrganizationORM,
+                self._normalise_ids(organization_ids),
+                label="Organization",
+            )
+            event_orm.themes = self._load_entity_rows(
+                session,
+                ThemeORM,
+                self._normalise_ids(theme_ids),
+                label="Theme",
+            )
+
+            session.commit()
+            session.refresh(event_orm)
+            return event_orm.to_domain()
+
+    def save_company_theme_links(
+        self,
+        *,
+        company_id: uuid.UUID,
+        theme_ids: Sequence[uuid.UUID],
+    ) -> Company:
+        """Persist Company ↔ Theme relationships deterministically."""
+        with self._session_factory() as session:
+            company_orm = session.get(CompanyORM, str(company_id))
+            if company_orm is None:
+                raise ValueError(f"Company {company_id} does not exist in the database.")
+            company_orm.themes = self._load_entity_rows(
+                session,
+                ThemeORM,
+                self._normalise_ids(theme_ids),
+                label="Theme",
+            )
+            session.commit()
+            session.refresh(company_orm)
+            return company_orm.to_domain()
+
+    def save_company_person_links(
+        self,
+        *,
+        company_id: uuid.UUID,
+        person_ids: Sequence[uuid.UUID],
+    ) -> Company:
+        """Persist Company ↔ Person relationships deterministically."""
+        with self._session_factory() as session:
+            company_orm = session.get(CompanyORM, str(company_id))
+            if company_orm is None:
+                raise ValueError(f"Company {company_id} does not exist in the database.")
+            company_orm.people = self._load_entity_rows(
+                session,
+                PersonORM,
+                self._normalise_ids(person_ids),
+                label="Person",
+            )
+            session.commit()
+            session.refresh(company_orm)
+            return company_orm.to_domain()
+
+    def save_person_organization_links(
+        self,
+        *,
+        person_id: uuid.UUID,
+        organization_ids: Sequence[uuid.UUID],
+    ) -> Person:
+        """Persist Person ↔ Organization relationships deterministically."""
+        with self._session_factory() as session:
+            person_orm = session.get(PersonORM, str(person_id))
+            if person_orm is None:
+                raise ValueError(f"Person {person_id} does not exist in the database.")
+            person_orm.organizations = self._load_entity_rows(
+                session,
+                OrganizationORM,
+                self._normalise_ids(organization_ids),
+                label="Organization",
+            )
+            session.commit()
+            session.refresh(person_orm)
+            return person_orm.to_domain()
 
 
 class ReportSectionRepository:
@@ -333,6 +582,21 @@ class DailyBriefRepository:
             session.commit()
             session.refresh(report_orm)
             return report_orm.to_domain()
+
+
+__all__ = [
+    "ArticleRepository",
+    "CompanyRepository",
+    "DailyBriefRepository",
+    "DuplicateArticleError",
+    "KnowledgeRepository",
+    "MarketEventRepository",
+    "OrganizationRepository",
+    "PersonRepository",
+    "ReportSectionRepository",
+    "SourceRepository",
+    "ThemeRepository",
+]
 
 
 __all__ = [
