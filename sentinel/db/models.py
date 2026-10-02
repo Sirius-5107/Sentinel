@@ -32,10 +32,14 @@ from sentinel_core.enums import (
     SourceType,
 )
 from sentinel_core.models.article import Article
+from sentinel_core.models.company import Company
 from sentinel_core.models.daily_report import DailyReport
 from sentinel_core.models.market_event import MarketEvent
+from sentinel_core.models.organization import Organization
+from sentinel_core.models.person import Person
 from sentinel_core.models.report_section import ReportSection
 from sentinel_core.models.source import Source
+from sentinel_core.models.theme import Theme
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -51,6 +55,11 @@ def _required_utc(value: datetime | None) -> datetime:
     if result is None:
         raise ValueError("UTC datetime value was unexpectedly null.")
     return result
+
+
+def _theme_slug_from_name(name: str) -> str:
+    slug = name.lower().replace(" & ", "-").replace("/", "-")
+    return "-".join(part for part in slug.replace(" ", "-").split("-") if part)
 
 
 class Base(DeclarativeBase):
@@ -241,6 +250,229 @@ market_event_report_section_table = Table(
     Column("report_section_id", String(36), ForeignKey("report_sections.id"), primary_key=True),
 )
 
+market_event_company_table = Table(
+    "market_event_company",
+    Base.metadata,
+    Column("market_event_id", String(36), ForeignKey("market_events.id"), primary_key=True),
+    Column("company_id", String(36), ForeignKey("companies.id"), primary_key=True),
+)
+
+market_event_person_table = Table(
+    "market_event_person",
+    Base.metadata,
+    Column("market_event_id", String(36), ForeignKey("market_events.id"), primary_key=True),
+    Column("person_id", String(36), ForeignKey("people.id"), primary_key=True),
+)
+
+market_event_organization_table = Table(
+    "market_event_organization",
+    Base.metadata,
+    Column("market_event_id", String(36), ForeignKey("market_events.id"), primary_key=True),
+    Column("organization_id", String(36), ForeignKey("organizations.id"), primary_key=True),
+)
+
+market_event_theme_table = Table(
+    "market_event_theme",
+    Base.metadata,
+    Column("market_event_id", String(36), ForeignKey("market_events.id"), primary_key=True),
+    Column("theme_id", String(36), ForeignKey("themes.id"), primary_key=True),
+)
+
+company_theme_table = Table(
+    "company_theme",
+    Base.metadata,
+    Column("company_id", String(36), ForeignKey("companies.id"), primary_key=True),
+    Column("theme_id", String(36), ForeignKey("themes.id"), primary_key=True),
+)
+
+company_person_table = Table(
+    "company_person",
+    Base.metadata,
+    Column("company_id", String(36), ForeignKey("companies.id"), primary_key=True),
+    Column("person_id", String(36), ForeignKey("people.id"), primary_key=True),
+)
+
+person_organization_table = Table(
+    "person_organization",
+    Base.metadata,
+    Column("person_id", String(36), ForeignKey("people.id"), primary_key=True),
+    Column("organization_id", String(36), ForeignKey("organizations.id"), primary_key=True),
+)
+
+
+class CompanyORM(Base):
+    """SQLAlchemy representation of a Company."""
+
+    __tablename__ = "companies"
+    __table_args__ = (UniqueConstraint("name", name="uq_company_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    people: Mapped[list[PersonORM]] = relationship(
+        secondary=company_person_table,
+        back_populates="companies",
+    )
+    themes: Mapped[list[ThemeORM]] = relationship(
+        secondary=company_theme_table,
+        back_populates="companies",
+    )
+    market_events: Mapped[list[MarketEventORM]] = relationship(
+        secondary=market_event_company_table,
+        back_populates="companies",
+    )
+
+    @classmethod
+    def from_domain(cls, company: Company) -> CompanyORM:
+        """Create a CompanyORM row from a Company domain model."""
+        return cls(
+            id=str(company.id),
+            name=company.name,
+            created_at=_required_utc(company.created_at),
+            updated_at=_required_utc(company.updated_at),
+        )
+
+    def to_domain(self) -> Company:
+        """Convert the row back to the Company domain model."""
+        return Company(
+            id=uuid.UUID(self.id),
+            name=self.name,
+            created_at=_required_utc(self.created_at),
+            updated_at=_required_utc(self.updated_at),
+        )
+
+
+class PersonORM(Base):
+    """SQLAlchemy representation of a Person."""
+
+    __tablename__ = "people"
+    __table_args__ = (UniqueConstraint("name", name="uq_person_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    companies: Mapped[list[CompanyORM]] = relationship(
+        secondary=company_person_table,
+        back_populates="people",
+    )
+    organizations: Mapped[list[OrganizationORM]] = relationship(
+        secondary=person_organization_table,
+        back_populates="people",
+    )
+    market_events: Mapped[list[MarketEventORM]] = relationship(
+        secondary=market_event_person_table,
+        back_populates="people",
+    )
+
+    @classmethod
+    def from_domain(cls, person: Person) -> PersonORM:
+        """Create a PersonORM row from a Person domain model."""
+        return cls(
+            id=str(person.id),
+            name=person.full_name,
+            created_at=_required_utc(person.created_at),
+            updated_at=_required_utc(person.updated_at),
+        )
+
+    def to_domain(self) -> Person:
+        """Convert the row back to the Person domain model."""
+        return Person(
+            id=uuid.UUID(self.id),
+            full_name=self.name,
+            created_at=_required_utc(self.created_at),
+            updated_at=_required_utc(self.updated_at),
+        )
+
+
+class OrganizationORM(Base):
+    """SQLAlchemy representation of an Organization."""
+
+    __tablename__ = "organizations"
+    __table_args__ = (UniqueConstraint("name", name="uq_organization_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    people: Mapped[list[PersonORM]] = relationship(
+        secondary=person_organization_table,
+        back_populates="organizations",
+    )
+    market_events: Mapped[list[MarketEventORM]] = relationship(
+        secondary=market_event_organization_table,
+        back_populates="organizations",
+    )
+
+    @classmethod
+    def from_domain(cls, organization: Organization) -> OrganizationORM:
+        """Create an OrganizationORM row from an Organization domain model."""
+        return cls(
+            id=str(organization.id),
+            name=organization.name,
+            created_at=_required_utc(organization.created_at),
+            updated_at=_required_utc(organization.updated_at),
+        )
+
+    def to_domain(self) -> Organization:
+        """Convert the row back to the Organization domain model."""
+        return Organization(
+            id=uuid.UUID(self.id),
+            name=self.name,
+            created_at=_required_utc(self.created_at),
+            updated_at=_required_utc(self.updated_at),
+        )
+
+
+class ThemeORM(Base):
+    """SQLAlchemy representation of a Theme."""
+
+    __tablename__ = "themes"
+    __table_args__ = (UniqueConstraint("name", name="uq_theme_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    companies: Mapped[list[CompanyORM]] = relationship(
+        secondary=company_theme_table,
+        back_populates="themes",
+    )
+    market_events: Mapped[list[MarketEventORM]] = relationship(
+        secondary=market_event_theme_table,
+        back_populates="themes",
+    )
+
+    @classmethod
+    def from_domain(cls, theme: Theme) -> ThemeORM:
+        """Create a ThemeORM row from a Theme domain model."""
+        if theme.slug != _theme_slug_from_name(theme.name):
+            raise ValueError(
+                "Arbitrary Theme slug persistence is outside the current minimal "
+                "persistence contract; slug must be derived from the theme name."
+            )
+        return cls(
+            id=str(theme.id),
+            name=theme.name,
+            created_at=_required_utc(theme.created_at),
+            updated_at=_required_utc(theme.updated_at),
+        )
+
+    def to_domain(self) -> Theme:
+        """Convert the row back to the Theme domain model."""
+        return Theme(
+            id=uuid.UUID(self.id),
+            name=self.name,
+            slug=_theme_slug_from_name(self.name),
+            created_at=_required_utc(self.created_at),
+            updated_at=_required_utc(self.updated_at),
+        )
+
 
 class MarketEventORM(Base):
     """SQLAlchemy representation of a MarketEvent."""
@@ -266,6 +498,22 @@ class MarketEventORM(Base):
 
     articles: Mapped[list[ArticleORM]] = relationship(
         secondary=article_market_event_table,
+        back_populates="market_events",
+    )
+    companies: Mapped[list[CompanyORM]] = relationship(
+        secondary=market_event_company_table,
+        back_populates="market_events",
+    )
+    people: Mapped[list[PersonORM]] = relationship(
+        secondary=market_event_person_table,
+        back_populates="market_events",
+    )
+    organizations: Mapped[list[OrganizationORM]] = relationship(
+        secondary=market_event_organization_table,
+        back_populates="market_events",
+    )
+    themes: Mapped[list[ThemeORM]] = relationship(
+        secondary=market_event_theme_table,
         back_populates="market_events",
     )
     report_sections: Mapped[list[ReportSectionORM]] = relationship(
@@ -452,8 +700,12 @@ ArticleORM.market_events = relationship(
 __all__ = [
     "ArticleORM",
     "Base",
+    "CompanyORM",
     "DailyReportORM",
     "MarketEventORM",
+    "OrganizationORM",
+    "PersonORM",
     "ReportSectionORM",
     "SourceORM",
+    "ThemeORM",
 ]
