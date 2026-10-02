@@ -57,6 +57,11 @@ def _required_utc(value: datetime | None) -> datetime:
     return result
 
 
+def _theme_slug_from_name(name: str) -> str:
+    slug = name.lower().replace(" & ", "-").replace("/", "-")
+    return "-".join(part for part in slug.replace(" ", "-").split("-") if part)
+
+
 class Base(DeclarativeBase):
     """Declarative base for the application persistence layer."""
 
@@ -299,28 +304,10 @@ class CompanyORM(Base):
     """SQLAlchemy representation of a Company."""
 
     __tablename__ = "companies"
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_company_name"),
-        UniqueConstraint("ticker", name="uq_company_ticker"),
-        UniqueConstraint("isin", name="uq_company_isin"),
-    )
+    __table_args__ = (UniqueConstraint("name", name="uq_company_name"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(300), nullable=False)
-    legal_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    ticker: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    isin: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    sector: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    asset_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    region: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    market_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
-    mention_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_mentioned_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -343,18 +330,6 @@ class CompanyORM(Base):
         return cls(
             id=str(company.id),
             name=company.name,
-            legal_name=company.legal_name,
-            ticker=company.ticker,
-            isin=company.isin,
-            country=company.country,
-            sector=company.sector.value if company.sector is not None else None,
-            asset_class=company.asset_class.value if company.asset_class is not None else None,
-            region=company.region.value if company.region is not None else None,
-            market_id=str(company.market_id) if company.market_id is not None else None,
-            description=company.description,
-            is_verified=company.is_verified,
-            mention_count=company.mention_count,
-            last_mentioned_at=company.last_mentioned_at,
             created_at=_required_utc(company.created_at),
             updated_at=_required_utc(company.updated_at),
         )
@@ -364,18 +339,6 @@ class CompanyORM(Base):
         return Company(
             id=uuid.UUID(self.id),
             name=self.name,
-            legal_name=self.legal_name,
-            ticker=self.ticker,
-            isin=self.isin,
-            country=self.country,
-            sector=Sector(self.sector) if self.sector is not None else None,
-            asset_class=AssetClass(self.asset_class) if self.asset_class is not None else None,
-            region=MarketRegion(self.region) if self.region is not None else None,
-            market_id=uuid.UUID(self.market_id) if self.market_id is not None else None,
-            description=self.description,
-            is_verified=self.is_verified,
-            mention_count=self.mention_count,
-            last_mentioned_at=_as_utc(self.last_mentioned_at),
             created_at=_required_utc(self.created_at),
             updated_at=_required_utc(self.updated_at),
         )
@@ -385,19 +348,10 @@ class PersonORM(Base):
     """SQLAlchemy representation of a Person."""
 
     __tablename__ = "people"
-    __table_args__ = (UniqueConstraint("full_name", name="uq_person_full_name"),)
+    __table_args__ = (UniqueConstraint("name", name="uq_person_name"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    organization_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
-    mention_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_mentioned_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -419,14 +373,7 @@ class PersonORM(Base):
         """Create a PersonORM row from a Person domain model."""
         return cls(
             id=str(person.id),
-            full_name=person.full_name,
-            title=person.title,
-            organization_name=person.organization_name,
-            country=person.country,
-            description=person.description,
-            is_verified=person.is_verified,
-            mention_count=person.mention_count,
-            last_mentioned_at=person.last_mentioned_at,
+            name=person.full_name,
             created_at=_required_utc(person.created_at),
             updated_at=_required_utc(person.updated_at),
         )
@@ -435,14 +382,7 @@ class PersonORM(Base):
         """Convert the row back to the Person domain model."""
         return Person(
             id=uuid.UUID(self.id),
-            full_name=self.full_name,
-            title=self.title,
-            organization_name=self.organization_name,
-            country=self.country,
-            description=self.description,
-            is_verified=self.is_verified,
-            mention_count=self.mention_count,
-            last_mentioned_at=_as_utc(self.last_mentioned_at),
+            full_name=self.name,
             created_at=_required_utc(self.created_at),
             updated_at=_required_utc(self.updated_at),
         )
@@ -452,22 +392,10 @@ class OrganizationORM(Base):
     """SQLAlchemy representation of an Organization."""
 
     __tablename__ = "organizations"
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_organization_name"),
-        UniqueConstraint("abbreviation", name="uq_organization_abbreviation"),
-    )
+    __table_args__ = (UniqueConstraint("name", name="uq_organization_name"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(300), nullable=False)
-    abbreviation: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    region: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
-    mention_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_mentioned_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -486,13 +414,6 @@ class OrganizationORM(Base):
         return cls(
             id=str(organization.id),
             name=organization.name,
-            abbreviation=organization.abbreviation,
-            country=organization.country,
-            region=organization.region.value if organization.region is not None else None,
-            description=organization.description,
-            is_verified=organization.is_verified,
-            mention_count=organization.mention_count,
-            last_mentioned_at=organization.last_mentioned_at,
             created_at=_required_utc(organization.created_at),
             updated_at=_required_utc(organization.updated_at),
         )
@@ -502,13 +423,6 @@ class OrganizationORM(Base):
         return Organization(
             id=uuid.UUID(self.id),
             name=self.name,
-            abbreviation=self.abbreviation,
-            country=self.country,
-            region=MarketRegion(self.region) if self.region is not None else None,
-            description=self.description,
-            is_verified=self.is_verified,
-            mention_count=self.mention_count,
-            last_mentioned_at=_as_utc(self.last_mentioned_at),
             created_at=_required_utc(self.created_at),
             updated_at=_required_utc(self.updated_at),
         )
@@ -518,20 +432,10 @@ class ThemeORM(Base):
     """SQLAlchemy representation of a Theme."""
 
     __tablename__ = "themes"
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_theme_name"),
-        UniqueConstraint("slug", name="uq_theme_slug"),
-    )
+    __table_args__ = (UniqueConstraint("name", name="uq_theme_name"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    asset_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    region: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
-    article_count: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_signal_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -547,16 +451,14 @@ class ThemeORM(Base):
     @classmethod
     def from_domain(cls, theme: Theme) -> ThemeORM:
         """Create a ThemeORM row from a Theme domain model."""
+        if theme.slug != _theme_slug_from_name(theme.name):
+            raise ValueError(
+                "Arbitrary Theme slug persistence is outside the current minimal "
+                "persistence contract; slug must be derived from the theme name."
+            )
         return cls(
             id=str(theme.id),
             name=theme.name,
-            slug=theme.slug,
-            description=theme.description,
-            asset_class=theme.asset_class.value if theme.asset_class is not None else None,
-            region=theme.region.value if theme.region is not None else None,
-            is_active=theme.is_active,
-            article_count=theme.article_count,
-            last_signal_at=theme.last_signal_at,
             created_at=_required_utc(theme.created_at),
             updated_at=_required_utc(theme.updated_at),
         )
@@ -566,13 +468,7 @@ class ThemeORM(Base):
         return Theme(
             id=uuid.UUID(self.id),
             name=self.name,
-            slug=self.slug,
-            description=self.description,
-            asset_class=AssetClass(self.asset_class) if self.asset_class is not None else None,
-            region=MarketRegion(self.region) if self.region is not None else None,
-            is_active=self.is_active,
-            article_count=self.article_count,
-            last_signal_at=_as_utc(self.last_signal_at),
+            slug=_theme_slug_from_name(self.name),
             created_at=_required_utc(self.created_at),
             updated_at=_required_utc(self.updated_at),
         )
